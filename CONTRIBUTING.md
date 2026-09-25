@@ -8,6 +8,10 @@ The application uses Gradle and can be used with Android Studio, but using
 Android Studio is not required. The build dependencies are:
 - OpenJDK 17
 - Android SDK: build tools, platform `36`
+- Android NDK `28.2.13676358` and CMake `3.22.1` for the optional prediction runtime
+
+See [offline prediction development and validation](doc/Offline-predictions.md)
+for the native benchmark and device acceptance checks.
 
 Python 3 is required to update generated files but not to build the app.
 

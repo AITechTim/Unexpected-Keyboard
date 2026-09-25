@@ -6,6 +6,7 @@ plugins {
 }
 
 dependencies {
+  implementation(project(":prediction-runtime"))
   // Following versions of androidx.window require sdk version 23
   implementation("androidx.window:window-java:1.4.0")
   implementation("androidx.core:core:1.16.0") // Version 1.17.0 available with sdk 36
@@ -14,6 +15,7 @@ dependencies {
 
 android {
   namespace = "juloo.keyboard2"
+  ndkVersion = "28.2.13676358"
   compileSdkVersion = "android-36"
 
   defaultConfig {

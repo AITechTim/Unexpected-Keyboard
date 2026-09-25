@@ -1,6 +1,7 @@
 package juloo.keyboard2.suggestions;
 
 import android.content.Context;
+import juloo.keyboard2.prediction.Candidate;
 import android.os.Build.VERSION;
 import android.text.InputType;
 import android.util.AttributeSet;
@@ -27,7 +28,8 @@ public class CandidatesView extends LinearLayout
       than [NUM_CANDIDATES] suggestions.
       - Entries at indexes [0] to [2] are word suggestions.
       - Entry at index [3] is the emoji suggestion. */
-  String[] _items = new String[NUM_CANDIDATES];
+  Candidate[] _items = new Candidate[NUM_CANDIDATES];
+  Candidate[] _pressed_items = new Candidate[NUM_CANDIDATES];
 
   /** Text views showing the candidates in [_items]. Text views visibility is
       set to [GONE] when there are less than [NUM_CANDIDATES] suggestions. */
@@ -63,8 +65,8 @@ public class CandidatesView extends LinearLayout
   {
     int s_count = s.count;
     for (int i = 0; i < Suggestions.MAX_COUNT; i++)
-      _items[i] = (i < s_count) ? s.suggestions[i] : null;
-    _items[3] = s.emoji_suggestion;
+      _items[i] = (i < s_count) ? s.candidates[i] : null;
+    _items[3] = s.emoji_suggestion == null ? null : new Candidate(s.emoji_suggestion, Candidate.Source.EMOJI, null);
     // Hide the status message when showing candidates.
     if (s_count != 0 && _status_no_dict != null)
       _status_no_dict.setVisibility(View.GONE);
@@ -73,7 +75,7 @@ public class CandidatesView extends LinearLayout
       TextView v = _item_views[i];
       if (_items[i] != null)
       {
-        v.setText(_items[i]);
+        v.setText(_items[i].text);
         v.setVisibility(View.VISIBLE);
       }
       else
@@ -87,11 +89,11 @@ public class CandidatesView extends LinearLayout
     _lang_name_view.setVisibility(dict_vis);
   }
 
-  void clear_candidates()
+  public void clear_candidates()
   {
     for (int i = 0; i < _item_views.length; i++)
     {
-      _items[i] = null;
+      _items[i] = _pressed_items[i] = null;
       _item_views[i].setVisibility(View.GONE);
     }
   }
@@ -101,7 +103,7 @@ public class CandidatesView extends LinearLayout
     clear_candidates();
     // The status message indicates whether the dictionaries should be
     // installed.
-    if (config.current_dictionary == null)
+    if (config.current_dictionary == null && !config.llm_predictions_enabled)
       inflate_status_no_dict(config);
     else if (_status_no_dict != null)
       _status_no_dict.setVisibility(View.GONE);
@@ -159,14 +161,22 @@ public class CandidatesView extends LinearLayout
   private void setup_item_view(final int item_index, int item_id)
   {
     TextView v = (TextView)findViewById(item_id);
+    v.setOnTouchListener((view, event) -> {
+      if (event.getActionMasked() == android.view.MotionEvent.ACTION_DOWN)
+        _pressed_items[item_index] = _items[item_index];
+      else if (event.getActionMasked() == android.view.MotionEvent.ACTION_CANCEL)
+        _pressed_items[item_index] = null;
+      return false;
+    });
     v.setOnClickListener(new View.OnClickListener()
         {
           @Override
           public void onClick(View _v)
           {
-            String it = _items[item_index];
+            Candidate it = _pressed_items[item_index] != null ? _pressed_items[item_index] : _items[item_index];
+            _pressed_items[item_index] = null;
             if (it != null)
-              Config.globalConfig().handler.suggestion_entered(it);
+              Config.globalConfig().handler.candidate_entered(it);
           }
         });
     v.setVisibility(View.GONE);

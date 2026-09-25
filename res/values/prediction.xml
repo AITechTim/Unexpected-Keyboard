@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+  <!-- Settings for this personal fork are currently English only. -->
+  <string translatable="false" name="prediction_title">Offline word predictions (experimental)</string>
+  <string translatable="false" name="prediction_summary">English next words and completions, processed on your phone. Tap a suggestion to accept it.</string>
+  <string translatable="false" name="prediction_model_title">Prediction model</string>
+  <string translatable="false" name="prediction_model_summary">Download or remove the 105 MB English model</string>
+  <string translatable="false" name="prediction_description">Download the English model, then enable offline word predictions in keyboard settings. Your typing stays on your phone. Predictions work without an internet connection after setup. Speed and battery use depend on your device.</string>
+  <string translatable="false" name="prediction_attribution" tools:ignore="TypographyDashes">SmolLM2-135M by Hugging Face, Apache 2.0. Q4_K_M conversion by QuantFactory. Inference powered by llama.cpp, MIT license.</string>
+  <string translatable="false" name="prediction_download">Download model (105 MB)</string>
+  <string translatable="false" name="prediction_remove">Remove model</string>
+  <string translatable="false" name="prediction_ready">Model installed. Enable offline word predictions in keyboard settings to use it.</string>
+  <string translatable="false" name="prediction_not_installed">Model not installed.</string>
+  <string translatable="false" name="prediction_downloading">Downloading and verifying model…</string>
+  <string translatable="false" name="prediction_download_failed">Could not install or remove the model. Check your connection and free storage, then try again.</string>
+  <string translatable="false" name="prediction_runtime_failed">The model could not run. Dictionary suggestions remain available. Disable predictions, remove the model, then download it again.</string>
+  <string translatable="false" name="prediction_unsupported">Offline predictions require a 64-bit ARM device running Android 9 or later.</string>
+  <string translatable="false" name="prediction_licenses">Model and runtime licenses</string>
+</resources>

@@ -23,6 +23,11 @@ public class SettingsActivity extends PreferenceActivity
     }
     catch (Exception _e) { fallbackEncrypted(); return; }
     addPreferencesFromResource(R.xml.settings);
+    findPreference("prediction_model").setOnPreferenceClickListener(pref -> {
+      startActivity(new android.content.Intent(this, juloo.keyboard2.prediction.PredictionSettingsActivity.class));
+      return true;
+    });
+    findPreference("llm_predictions").setEnabled(juloo.keyboard2.prediction.ModelStore.supported());
 
     boolean foldableDevice = FoldStateTracker.isFoldableDevice(this);
     findPreference("margin_bottom_portrait_unfolded").setEnabled(foldableDevice);

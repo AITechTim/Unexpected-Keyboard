@@ -32,6 +32,12 @@ Usage: to apply the symbols located in the corners of each key, slide your finge
 | --- | --- | --- |
 | <img src="/fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" alt="Screenshot-4" /> | <img src="/fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" alt="Screenshot-5" /> | <img src="/fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" alt="Screenshot-6" /> |
 
+## Offline word predictions in this fork
+
+This fork includes optional, experimental English predictions running on your
+phone. Download the model in keyboard settings, then enable offline word
+predictions. See [setup, privacy and device requirements](doc/Offline-predictions.md).
+
 ## Help translate the application
 
 Improve the application translations [using Weblate](https://hosted.weblate.org/engage/unexpected-keyboard/).

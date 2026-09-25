@@ -1,6 +1,8 @@
 package juloo.keyboard2.suggestions;
 
 import java.util.Arrays;
+import juloo.keyboard2.prediction.Candidate;
+import juloo.keyboard2.prediction.PredictionSnapshot;
 import java.util.List;
 import juloo.cdict.Cdict;
 import juloo.keyboard2.dict.Dictionaries;
@@ -22,6 +24,56 @@ public final class Suggestions
       are not [null]. */
   public int count = 0;
   public String emoji_suggestion = null;
+  public final Candidate[] candidates = new Candidate[MAX_COUNT];
+  private final String[] dictionary = new String[MAX_COUNT];
+  private int dictionary_count;
+  private boolean showing_predictions;
+
+  public String dictionary_first() { return dictionary_count > 0 ? dictionary[0] : null; }
+
+  public void clear_predictions()
+  {
+    if (!showing_predictions) return;
+    showing_predictions = false;
+    count = dictionary_count;
+    for (int i = 0; i < MAX_COUNT; i++)
+    {
+      suggestions[i] = dictionary[i];
+      candidates[i] = dictionary[i] == null ? null :
+        new Candidate(dictionary[i], Candidate.Source.DICTIONARY, null);
+    }
+    _callback.set_suggestions(this);
+  }
+
+  public void set_predictions(PredictionSnapshot snapshot, String[] words)
+  {
+    clear_predictions();
+    int n = 0;
+    for (String word : words)
+    {
+      if (n == MAX_COUNT) break;
+      if (!snapshot.validWord(word) || contains(word, n)) continue;
+      suggestions[n] = word;
+      candidates[n++] = new Candidate(word, Candidate.Source.LLM, snapshot);
+    }
+    if (n == 0) return;
+    showing_predictions = true;
+    for (int i = 0; i < dictionary_count && n < MAX_COUNT; i++)
+    {
+      if (contains(dictionary[i], n)) continue;
+      suggestions[n] = dictionary[i];
+      candidates[n++] = new Candidate(dictionary[i], Candidate.Source.DICTIONARY, null);
+    }
+    count = n;
+    for (; n < MAX_COUNT; n++) { suggestions[n] = null; candidates[n] = null; }
+    _callback.set_suggestions(this);
+  }
+
+  private boolean contains(String word, int n)
+  {
+    for (int i = 0; i < n; i++) if (word.equalsIgnoreCase(suggestions[i])) return true;
+    return false;
+  }
   /** Number of suggestions in [suggestions]. */
   public static final int MAX_COUNT = 3;
 
@@ -45,14 +97,28 @@ public final class Suggestions
       clear();
     else
       query_suggestions(word);
+    publish_dictionary();
+  }
+
+  void publish_dictionary()
+  {
+    showing_predictions = false;
+    dictionary_count = count;
+    for (int i = 0; i < MAX_COUNT; i++)
+    {
+      dictionary[i] = suggestions[i] = i < count ? suggestions[i] : null;
+      candidates[i] = dictionary[i] == null ? null :
+        new Candidate(dictionary[i], Candidate.Source.DICTIONARY, null);
+    }
     _callback.set_suggestions(this);
   }
 
   void clear()
   {
-    count = 0;
+    count = dictionary_count = 0;
+    showing_predictions = false;
     for (int i = 0; i < MAX_COUNT; i++)
-      suggestions[i] = null;
+    { suggestions[i] = dictionary[i] = null; candidates[i] = null; }
     emoji_suggestion = null;
   }
 

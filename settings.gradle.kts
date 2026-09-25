@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Unexpected-Keyboard"
+include(":prediction-runtime")

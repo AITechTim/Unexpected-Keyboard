@@ -32,6 +32,7 @@ import juloo.keyboard2.dict.DictionarySwitcher;
 import juloo.keyboard2.prefs.LayoutsPreference;
 import juloo.keyboard2.suggestions.CandidatesView;
 import juloo.keyboard2.suggestions.Suggestions;
+import juloo.keyboard2.prediction.PredictionController;
 
 public class Keyboard2 extends InputMethodService
   implements SharedPreferences.OnSharedPreferenceChangeListener
@@ -41,6 +42,7 @@ public class Keyboard2 extends InputMethodService
   private Keyboard2View _keyboard_layout_view;
   private CandidatesView _candidates_view;
   private Suggestions _suggestions;
+  private PredictionController _predictions;
   private KeyEventHandler _keyeventhandler;
   /** If not 'null', the layout to use instead of [_config.current_layout]. */
   private KeyboardData _currentSpecialLayout;
@@ -140,6 +142,8 @@ public class Keyboard2 extends InputMethodService
     Receiver recvr = this.new Receiver();
     _suggestions = new Suggestions(recvr, _config);
     _keyeventhandler = new KeyEventHandler(recvr, _suggestions);
+    _predictions = new PredictionController(this, _handler, this::getCurrentInputConnection, _config, _suggestions);
+    _keyeventhandler.predictions = _predictions;
     KeyValue.Stateful._handler = recvr;
     _config.handler = _keyeventhandler;
     prefs.registerOnSharedPreferenceChangeListener(this);
@@ -154,6 +158,7 @@ public class Keyboard2 extends InputMethodService
   public void onDestroy() {
     super.onDestroy();
 
+    _predictions.close();
     _foldStateTracker.close();
   }
 
@@ -218,6 +223,7 @@ public class Keyboard2 extends InputMethodService
       _keyeventhandler.dictionary_changed();
     }
     _candidates_view.setVisibility(should_show ? View.VISIBLE : View.GONE);
+    if (_predictions != null) _predictions.configurationChanged();
   }
 
   /** Might re-create the keyboard view. [_keyboard_layout_view.setKeyboard()] and
@@ -267,6 +273,7 @@ public class Keyboard2 extends InputMethodService
     _currentSpecialLayout = refresh_special_layout();
     _keyboard_layout_view.setKeyboard(current_layout());
     _keyeventhandler.started(_config);
+    _predictions.start(info);
     setInputView(_keyboard_container_view);
     Logs.debug_startup_input_view(info, _config);
   }
@@ -373,7 +380,26 @@ public class Keyboard2 extends InputMethodService
   public void onFinishInputView(boolean finishingInput)
   {
     super.onFinishInputView(finishingInput);
+    _predictions.finish();
+    _keyeventhandler.finished();
+    _candidates_view.clear_candidates();
     _keyboard_layout_view.reset();
+  }
+
+  @Override
+  public void onFinishInput()
+  {
+    if (_predictions != null) _predictions.finish();
+    if (_keyeventhandler != null) _keyeventhandler.finished();
+    super.onFinishInput();
+  }
+
+  @Override
+  public void onTrimMemory(int level)
+  {
+    super.onTrimMemory(level);
+    if (_predictions != null && level != android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN)
+      _predictions.trim();
   }
 
   @Override

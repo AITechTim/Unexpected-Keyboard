@@ -1,0 +1,1 @@
+-keep class juloo.keyboard2.prediction.runtime.NativePredictor { *; }
