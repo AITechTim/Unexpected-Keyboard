@@ -36,6 +36,17 @@ public final class PredictionSettingsActivity extends Activity
     progress.setMax(100); layout.addView(progress);
     action = new Button(this); layout.addView(action);
     remove = new Button(this); remove.setText(R.string.prediction_remove); layout.addView(remove);
+    Button clear = new Button(this); clear.setText(R.string.prediction_clear); layout.addView(clear);
+    clear.setOnClickListener(v -> {
+      // Invalidate controller caches and its pending learning before clearing disk.
+      android.content.SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+      prefs.edit().putLong("learning_clear_epoch", System.currentTimeMillis()).apply();
+      clear.setEnabled(false);
+      PhraseStore.get(this).clear(success -> handler.post(() -> {
+        clear.setEnabled(true);
+        android.widget.Toast.makeText(this, success ? R.string.prediction_cleared : R.string.prediction_clear_failed, android.widget.Toast.LENGTH_SHORT).show();
+      }));
+    });
     TextView attribution = new TextView(this);
     attribution.setText(R.string.prediction_attribution); layout.addView(attribution);
     Button licenses = new Button(this);

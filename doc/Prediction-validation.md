@@ -1,4 +1,66 @@
-# Prediction validation — 2026-09-25
+# Prediction validation
+
+## Word acceptance, learning, and phrases — 2026-09-26
+
+Implementation follows `13b6412` on `feat/offline-word-predictions`. The pinned
+model and llama.cpp runtime are unchanged.
+
+- **65 Java tests pass**, with no skipped tests. New tests cover full-word
+  acceptance (`to`, `at`, `by`), repeated taps, delayed selection notifications,
+  stale cursor/selection state, composing regions, failed editor operations,
+  UTF-16/emoji, punctuation, existing whitespace, phrase undo, and legacy editor
+  query support. Editor integration uses Robolectric at API 35; it is not an
+  Obsidian or Android 17 device test.
+- Learning tests cover repeated observations, contextual ranking, preserved
+  capitalization, prefix matching, retention/capacity, persistence after a cache
+  reload, storage outside backups, clear, pause, sensitive fields, pasted and
+  generated text, immediate undo, and pending learning invalidation.
+- **19 native word/phrase boundary checks pass**. The real model also passes the
+  benchmark's concurrent cancellation check.
+- `:testDebugUnitTest assembleDebug --rerun-tasks` succeeds with the same isolated
+  SDK/JDK and bounded build settings as below. Forced execution is important:
+  incremental runs in this workspace previously omitted newly added test files.
+- The debug APK passes `zipalign -c -P 16 4`. Its application ID remains
+  `juloo.keyboard2.debug`; installing it updates the previous debug build.
+
+Lint still fails on the repository baseline: **309 errors** remain (263 missing
+translations, 31 API-level issues, 15 class-lookup issues). The API annotation on
+the existing surrounding-text helper resolves two previous errors; no new lint
+errors remain. The new phrase view has the same targeted class-lookup suppression
+as the prediction settings activity because of this repository's source layout.
+
+### Desktop smoke results
+
+| Measurement | Result |
+| --- | ---: |
+| Real-model next-word top-three hits | 17 / 30 |
+| Real-model two-letter completion hits | 28 / 30 |
+| Dictionary two-letter completion hits | 9 / 30 |
+| Real-model phrase availability | 17 / 30 prompts |
+| Word warm p95 including 50 ms debounce | 302 ms |
+| Phrase inference p95, excluding scheduling delay | 230 ms |
+| Model load | 313 ms |
+| Learned exact phrases after two typed occurrences | 5 / 5 |
+| Manual keys after each replay phrase's first word | 95 |
+| Ideal single-word completion taps for the same suffixes | 19 |
+| Learned whole-phrase taps for those suffixes | 5 |
+| Maximum lookup in the small learned replay | 6.84 ms |
+
+The word corpus is the same 30 synthetic prompts as the original benchmark.
+Phrase samples included “link to the article” and “in a few days.” Availability
+is not an accuracy score. The new five-phrase replay is intentionally trained
+on its own recurring phrases; it demonstrates memory and tap reduction, not
+unseen-language generalization. Its single-word baseline assumes perfect
+predictions, costing one tap per remaining word.
+
+Timing was measured on the shared devbox and cannot establish phone speed.
+The word p95 exceeds the original 200 ms goal. Phrase work runs after words and
+at least 250 ms of quiet typing, so its inference time is not end-to-end latency.
+No phone was connected to ADB. Obsidian on Pixel 8 / Android 17, actual keyboard
+rendering/touch behavior, battery use, and device latency remain unverified.
+Follow the expanded device checklist in `Offline-predictions.md`.
+
+## Original implementation — 2026-09-25
 
 Implementation base: `7e632fb` (Unexpected Keyboard 2.1.0).
 Runtime: llama.cpp `e85e15cf6d810cd1268498c2e5b657bb3ece47bc`.

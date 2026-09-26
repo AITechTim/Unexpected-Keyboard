@@ -11,10 +11,12 @@ dependencies {
   implementation("androidx.window:window-java:1.4.0")
   implementation("androidx.core:core:1.16.0") // Version 1.17.0 available with sdk 36
   testImplementation("junit:junit:4.13.2")
+  testImplementation("org.robolectric:robolectric:4.16.1")
 }
 
 android {
   namespace = "juloo.keyboard2"
+  testOptions { unitTests.isIncludeAndroidResources = true }
   ndkVersion = "28.2.13676358"
   compileSdkVersion = "android-36"
 
@@ -35,6 +37,7 @@ android {
     }
 
     named("test") {
+      manifest.srcFile("test/AndroidManifest.xml")
       java.srcDirs("test")
     }
   }
@@ -167,6 +170,8 @@ val compileComposeSequences by tasks.registering(Exec::class) {
 }
 
 tasks.withType(Test::class).configureEach {
+  maxHeapSize = "1g"
+  maxParallelForks = 1
   dependsOn(genLayoutsList, checkKeyboardLayouts, compileComposeSequences, genMethodXml)
 }
 

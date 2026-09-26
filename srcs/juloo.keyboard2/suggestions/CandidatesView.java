@@ -29,6 +29,7 @@ public class CandidatesView extends LinearLayout
       - Entries at indexes [0] to [2] are word suggestions.
       - Entry at index [3] is the emoji suggestion. */
   Candidate[] _items = new Candidate[NUM_CANDIDATES];
+  boolean[] _touching = new boolean[NUM_CANDIDATES];
   Candidate[] _pressed_items = new Candidate[NUM_CANDIDATES];
 
   /** Text views showing the candidates in [_items]. Text views visibility is
@@ -66,7 +67,7 @@ public class CandidatesView extends LinearLayout
     int s_count = s.count;
     for (int i = 0; i < Suggestions.MAX_COUNT; i++)
       _items[i] = (i < s_count) ? s.candidates[i] : null;
-    _items[3] = s.emoji_suggestion == null ? null : new Candidate(s.emoji_suggestion, Candidate.Source.EMOJI, null);
+    _items[3] = s.emoji_suggestion == null ? null : new Candidate(s.emoji_suggestion, Candidate.Source.EMOJI, s.snapshot());
     // Hide the status message when showing candidates.
     if (s_count != 0 && _status_no_dict != null)
       _status_no_dict.setVisibility(View.GONE);
@@ -103,7 +104,7 @@ public class CandidatesView extends LinearLayout
     clear_candidates();
     // The status message indicates whether the dictionaries should be
     // installed.
-    if (config.current_dictionary == null && !config.llm_predictions_enabled)
+    if (config.current_dictionary == null && !config.llm_predictions_enabled && !config.learn_writing)
       inflate_status_no_dict(config);
     else if (_status_no_dict != null)
       _status_no_dict.setVisibility(View.GONE);
@@ -163,9 +164,9 @@ public class CandidatesView extends LinearLayout
     TextView v = (TextView)findViewById(item_id);
     v.setOnTouchListener((view, event) -> {
       if (event.getActionMasked() == android.view.MotionEvent.ACTION_DOWN)
-        _pressed_items[item_index] = _items[item_index];
+      { _touching[item_index] = true; _pressed_items[item_index] = _items[item_index]; }
       else if (event.getActionMasked() == android.view.MotionEvent.ACTION_CANCEL)
-        _pressed_items[item_index] = null;
+      { _touching[item_index] = false; _pressed_items[item_index] = null; }
       return false;
     });
     v.setOnClickListener(new View.OnClickListener()
@@ -173,7 +174,8 @@ public class CandidatesView extends LinearLayout
           @Override
           public void onClick(View _v)
           {
-            Candidate it = _pressed_items[item_index] != null ? _pressed_items[item_index] : _items[item_index];
+            Candidate it = _touching[item_index] ? _pressed_items[item_index] : _items[item_index];
+            _touching[item_index] = false;
             _pressed_items[item_index] = null;
             if (it != null)
               Config.globalConfig().handler.candidate_entered(it);

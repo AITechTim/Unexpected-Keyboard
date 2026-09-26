@@ -3,12 +3,20 @@ package juloo.keyboard2.prediction;
 /** Immutable editor snapshot. Offsets are UTF-16, matching InputConnection. */
 public final class PredictionSnapshot
 {
+  public enum Kind { WORD, PHRASE }
+  public final Kind kind;
   public final long revision;
-  public final String before, after, context, prefix;
+  public final String before, after, context, prefix, wordBefore, wordAfter;
   public final int selection;
 
   public PredictionSnapshot(long revision, String before, String after, int selection)
   {
+    this(revision, before, after, selection, Kind.WORD);
+  }
+
+  public PredictionSnapshot(long revision, String before, String after, int selection, Kind kind)
+  {
+    this.kind = kind;
     this.revision = revision;
     this.before = before;
     this.after = after;
@@ -18,6 +26,14 @@ public final class PredictionSnapshot
       start -= Character.charCount(before.codePointBefore(start));
     prefix = before.substring(start);
     context = before.substring(0, start);
+    start = before.length();
+    while (start > 0 && replacementChar(before.codePointBefore(start)))
+      start -= Character.charCount(before.codePointBefore(start));
+    wordBefore = before.substring(start);
+    int end = 0;
+    while (end < after.length() && replacementChar(after.codePointAt(end)))
+      end += Character.charCount(after.codePointAt(end));
+    wordAfter = after.substring(0, end);
   }
 
   public boolean eligible()
@@ -58,7 +74,20 @@ public final class PredictionSnapshot
     return letter;
   }
 
-  public String insertion(String word) { return after.isEmpty() ? word + " " : word; }
+  public PredictionSnapshot forPhrase()
+  { return new PredictionSnapshot(revision, before, after, selection, Kind.PHRASE); }
 
-  private static boolean wordChar(int c) { return Character.isLetter(c) || c == '\''; }
+  public boolean validPhrase(String phrase)
+  {
+    if (phrase == null || !phrase.startsWith(prefix)) return false;
+    String[] words = phrase.split(" ", -1);
+    if (words.length < 2 || words.length > 5) return false;
+    PredictionSnapshot empty = new PredictionSnapshot(0, "", "", 0);
+    for (String word : words) if (!empty.validWord(word)) return false;
+    return true;
+  }
+
+  private static boolean replacementChar(int c) { return Character.isLetterOrDigit(c) || c == '\''; }
+
+  public static boolean wordChar(int c) { return Character.isLetter(c) || c == '\''; }
 }

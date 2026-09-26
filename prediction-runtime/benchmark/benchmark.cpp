@@ -47,7 +47,8 @@ int main(int argc, char ** argv) {
     std::string line;
     int cases = 0, next_hits = 0, completion_hits = 0, dictionary_hits = 0;
     int saved = 0, possible = 0;
-    std::vector<double> timings;
+    std::vector<double> timings, phrase_timings;
+    int phrase_results = 0;
     while (std::getline(corpus, line)) {
         if (line.empty() || line[0] == '#') continue;
         size_t tab = line.find('\t');
@@ -69,6 +70,13 @@ int main(int argc, char ** argv) {
         // End-of-field acceptance includes a space and costs one tap.
         saved += nh ? expected.size() : ch ? expected.size() - 2 : 0;
         possible += expected.size() + 1;
+        begin = keyboard::Clock::now();
+        auto phrase = predictor.predict(context, "", 500, true);
+        phrase_timings.push_back(std::chrono::duration<double, std::milli>(keyboard::Clock::now() - begin).count());
+        if (!phrase.empty()) {
+            ++phrase_results;
+            if (cases < 5) std::cerr << "Phrase sample: " << context << "[" << phrase[0] << "]\n";
+        }
         ++cases;
     }
     if (cases == 0) return 4;
@@ -83,10 +91,13 @@ int main(int argc, char ** argv) {
     running.join();
     if (!cancelled.empty()) { std::cerr << "Cancellation test failed\n"; return 5; }
     std::sort(timings.begin(), timings.end());
+    std::sort(phrase_timings.begin(), phrase_timings.end());
     std::cout << "{\"cases\":" << cases << ",\"load_ms\":" << load_ms
               << ",\"warm_p95_ms_including_debounce\":" << timings[static_cast<size_t>(std::ceil(timings.size() * .95)) - 1]
               << ",\"next_word_top3_hits\":" << next_hits << ",\"completion_top3_hits\":" << completion_hits
               << ",\"dictionary_top3_hits\":" << (dp ? dictionary_hits : -1)
               << ",\"simulated_keystrokes_saved\":" << saved << ",\"typed_keystrokes\":" << possible
+              << ",\"phrase_results\":" << phrase_results
+              << ",\"phrase_inference_p95_ms\":" << phrase_timings[static_cast<size_t>(std::ceil(phrase_timings.size() * .95)) - 1]
               << ",\"cancellation_passed\":true}\n";
 }

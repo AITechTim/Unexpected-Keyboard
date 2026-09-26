@@ -21,9 +21,9 @@ JNIEXPORT jboolean JNICALL Java_juloo_keyboard2_prediction_runtime_NativePredict
     env->ReleaseStringUTFChars(file, path);
     return ok;
 }
-JNIEXPORT jobjectArray JNICALL Java_juloo_keyboard2_prediction_runtime_NativePredictor_predict(JNIEnv * env, jclass, jlong h, jbyteArray context, jbyteArray prefix) {
+JNIEXPORT jobjectArray JNICALL Java_juloo_keyboard2_prediction_runtime_NativePredictor_predict(JNIEnv * env, jclass, jlong h, jbyteArray context, jbyteArray prefix, jboolean phrase) {
     std::vector<std::string> words;
-    try { words = ptr(h)->predict(bytes(env, context), bytes(env, prefix)); }
+    try { words = ptr(h)->predict(bytes(env, context), bytes(env, prefix), phrase ? 500 : 250, phrase); }
     catch (const std::exception &) { ptr(h)->reset(); }
     jclass byte_array = env->FindClass("[B");
     jobjectArray result = env->NewObjectArray(words.size(), byte_array, nullptr);

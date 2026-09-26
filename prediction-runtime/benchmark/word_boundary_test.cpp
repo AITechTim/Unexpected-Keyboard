@@ -18,5 +18,13 @@ int main() {
     check(word_state(" \nhello!", " \n", 2, word) == 1 && word == "hello");
     check(word_state("\nsecret", " ", 1, word) == -1);
     check(word_state(std::string(65, 'a'), "", 0, word) == -1);
-    std::cout << "11 word boundary checks passed\n";
+    using keyboard::phrase_state;
+    check(phrase_state(" see you tomo", " s", 1, word) == 0 && word == "see you");
+    check(phrase_state(" see you tomorrow!", " s", 1, word) == 1 && word == "see you tomorrow");
+    check(phrase_state(" see you tomorrow\nsecret", " s", 1, word) == 1 && word == "see you tomorrow");
+    check(phrase_state("one two three four five six", "", 0, word) == 1 && word == "one two three four five");
+    check(phrase_state(" tea please ", " cof", 1, word) == -1);
+    check(phrase_state(" café please ", " caf", 1, word) == 0 && word == "café please");
+    check(phrase_state(" a ", " a", 1, word) == 0 && word == "a");
+    std::cout << "19 word and phrase boundary checks passed\n";
 }

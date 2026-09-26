@@ -34,4 +34,20 @@ public class PredictionMergeTest
     assertEquals(0, s.count);
     assertNull(s.candidates[0]);
   }
+  @Test public void learnedChoicesSurviveModelResultsAndClearInvalidatesAllCandidates()
+  {
+    Suggestions s = new Suggestions(ignored -> {}, null);
+    PredictionSnapshot snapshot = new PredictionSnapshot(4, "see ", "", 4);
+    s.set_learned(snapshot, new String[]{"you"});
+    s.set_phrase(snapshot, "you tomorrow morning", Candidate.Source.LEARNED);
+    s.set_predictions(snapshot, new String[]{"the", "you", "a"});
+    assertArrayEquals(new String[]{"you", "the", "a"}, s.suggestions);
+    s.set_phrase(snapshot, "the next day", Candidate.Source.LLM);
+    assertEquals("you tomorrow morning", s.phrase.text);
+    s.invalidate();
+    assertNull(s.phrase);
+    assertNull(s.snapshot());
+    assertEquals(0, s.count);
+  }
+
 }

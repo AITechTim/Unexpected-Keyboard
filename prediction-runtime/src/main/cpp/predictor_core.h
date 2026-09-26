@@ -33,6 +33,29 @@ inline int word_state(const std::string & text, const std::string & required,
     return end < text.size() ? 1 : 0;
 }
 
+// Phrase parsing preserves only words with a decoded following boundary.
+// The unfinished final word is never shown, including on timeout.
+inline int phrase_state(const std::string & text, const std::string & required,
+                        size_t spaces, std::string & phrase) {
+    phrase.clear();
+    size_t match = std::min(text.size(), required.size());
+    if (text.compare(0, match, required, 0, match) != 0) return -1;
+    size_t at = spaces;
+    int words = 0;
+    while (at < text.size()) {
+        size_t begin = at;
+        while (at < text.size() && word_byte(static_cast<unsigned char>(text[at]))) ++at;
+        if (at - begin > 64 || at == begin) return -1;
+        if (at == text.size()) return 0;
+        if (at < required.size()) return -1;
+        if (words++) phrase += " ";
+        phrase += text.substr(begin, at - begin);
+        if (words == 5 || text[at] != ' ') return 1;
+        ++at;
+    }
+    return 0;
+}
+
 struct Predictor {
     llama_model * model = nullptr;
     llama_context * ctx = nullptr;
@@ -102,7 +125,7 @@ struct Predictor {
     struct Extension { int parent; llama_token token; std::string text; double score; };
 
     std::vector<std::string> predict(std::string context, const std::string & prefix,
-                                     int budget_ms = 250) {
+                                     int budget_ms = 250, bool phrase_mode = false) {
         if (!ctx) return {};
         running = cancellation.load();
         deadline = Clock::now() + std::chrono::milliseconds(budget_ms);
@@ -138,7 +161,10 @@ struct Predictor {
         std::vector<Beam> beams{{0, batch.n_tokens - 1, "", 0}};
         std::map<std::string, double> finished;
         const int vocab_size = llama_vocab_n_tokens(vocab);
-        for (int depth = 0; depth < 8 && !beams.empty() && !abort(this); ++depth) {
+        std::string partial_phrase;
+        const int depth_limit = phrase_mode ? 32 : 8;
+        const size_t beam_limit = phrase_mode ? 1 : 6;
+        for (int depth = 0; depth < depth_limit && !beams.empty() && !abort(this); ++depth) {
             std::vector<Extension> extensions;
             for (const auto & b : beams) {
                 const float * logits = llama_get_logits_ith(ctx, b.row);
@@ -152,26 +178,33 @@ struct Predictor {
                     if ((t & 1023) == 0 && abort(this)) break;
                     if (pieces[t].empty() || llama_vocab_is_eog(vocab, t)) continue;
                     std::string text = b.text + pieces[t], word;
-                    int state = word_state(text, required, whitespace.size(), word);
+                    int state = phrase_mode ? phrase_state(text, required, whitespace.size(), word)
+                                            : word_state(text, required, whitespace.size(), word);
                     if (state < 0) continue;
                     double score = b.score + logits[t] - norm;
-                    if (state == 1) {
+                    if (state == 1 && !phrase_mode) {
                         if (word.size() <= prefix.size()) continue;
                         auto old = finished.find(word);
                         if (old == finished.end() || score > old->second) finished[word] = score;
                     } else {
-                        if (extensions.size() < 6 || score > extensions.back().score) {
+                        if (extensions.size() < beam_limit || score > extensions.back().score) {
                             extensions.push_back({b.seq, t, std::move(text), score});
                             std::sort(extensions.begin(), extensions.end(), [](const Extension & a, const Extension & b) {
                                 return a.score > b.score;
                             });
-                            if (extensions.size() > 6) extensions.pop_back();
+                            if (extensions.size() > beam_limit) extensions.pop_back();
                         }
                     }
                 }
             }
-            if (depth == 7 || abort(this)) break;
             if (extensions.empty()) break;
+            if (phrase_mode) {
+                std::string complete;
+                int state = phrase_state(extensions[0].text, required, whitespace.size(), complete);
+                if (complete.find(' ') != std::string::npos) partial_phrase = complete;
+                if (state == 1) break;
+            }
+            if (depth + 1 == depth_limit || abort(this)) break;
             // Once three completed words outrank every unfinished path, further
             // decoding cannot improve the result (log probabilities only fall).
             if (finished.size() >= 3) {
@@ -196,6 +229,7 @@ struct Predictor {
         llama_batch_free(batch);
         if (cancellation.load() != running) return {};
         for (int seq = 1; seq < 13; ++seq) llama_memory_seq_rm(mem, seq, -1, -1);
+        if (phrase_mode) return partial_phrase.empty() ? std::vector<std::string>{} : std::vector<std::string>{partial_phrase};
         std::vector<std::pair<std::string, double>> ranked(finished.begin(), finished.end());
         std::sort(ranked.begin(), ranked.end(), [](const auto & a, const auto & b) { return a.second > b.second; });
         std::vector<std::string> result;

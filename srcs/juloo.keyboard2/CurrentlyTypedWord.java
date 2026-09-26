@@ -26,7 +26,7 @@ public final class CurrentlyTypedWord
   /** Used to avoid concurrent refreshes in [delayed_refresh()]. */
   boolean _refresh_pending = false;
 
-  /** The estimated cursor position in code points. Used to avoid expensive IPC
+  /** The estimated cursor position in UTF-16 units. Used to avoid expensive IPC
       calls when the typed word can be estimated locally with [typed]. When the
       cursor position gets out of sync, the text before the cursor is queried
       again to the editor. */
@@ -98,9 +98,7 @@ public final class CurrentlyTypedWord
     else if (newSelStart != _cursor)
     {
       _cursor = newSelStart;
-      _w_cursor += newSelStart - oldSelStart;
-      if (_w_cursor < -_w.length() || _w_cursor > 0)
-        refresh_current_word();
+      refresh_current_word();
     }
   }
 
@@ -144,19 +142,19 @@ public final class CurrentlyTypedWord
   void type_chars(CharSequence s, int start, int end)
   {
     int insert_start = 0;
-    // Iterate over code points as that's the unit of [_cursor].
+    // Iterate over code points but track Android UTF-16 offsets.
     for (int i = start; i < end;)
     {
       int c = Character.codePointAt(s, i);
       i += Character.charCount(c);
-      _cursor++;
+      _cursor += Character.charCount(c);
       // [i >= end] might happen when the cursor is in the middle of a
       // surrogate pair
       if (!is_word_char(c) && i <= end)
         insert_start = i;
     }
     if (insert_start > 0)
-      _w.setLength(0);
+    { _w.setLength(0); _w_cursor = 0; }
     _w.insert(Math.max(_w.length() + _w_cursor, 0), s, insert_start, end);
   }
 
@@ -195,7 +193,11 @@ public final class CurrentlyTypedWord
     if (_has_selection)
       set_current_word("");
     else if (VERSION.SDK_INT >= 31)
-      set_current_word(_ic.getSurroundingText(20, 20, 0));
+    {
+      SurroundingText text = _ic.getSurroundingText(20, 20, 0);
+      if (text != null) set_current_word(text);
+      else set_current_word(_ic.getTextBeforeCursor(20, 0));
+    }
     else
       set_current_word(_ic.getTextBeforeCursor(20, 0));
   }
@@ -213,6 +215,7 @@ public final class CurrentlyTypedWord
   }
 
   /** Like above but take the text after the cursor into account. */
+  @androidx.annotation.RequiresApi(31)
   void set_current_word(SurroundingText st)
   {
     _w.setLength(0);
@@ -223,7 +226,9 @@ public final class CurrentlyTypedWord
     CharSequence st_text = st.getText();
     type_chars(st_text, 0, st_sel);
     _w_cursor = -append_chars(st_text, st_sel, st_text.length());
-    _cursor = saved_cursor;
+    _cursor = st.getOffset() >= 0 ? st.getOffset() + st_sel : saved_cursor;
+    _has_selection = st.getSelectionStart() != st.getSelectionEnd();
+    if (_has_selection) _w.setLength(0);
     callback();
   }
 

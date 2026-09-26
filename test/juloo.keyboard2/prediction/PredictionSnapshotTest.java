@@ -23,9 +23,9 @@ public class PredictionSnapshotTest
 
   @Test public void acceptsNextWordAndPreservesPunctuation()
   {
-    assertEquals("coffee ", snapshot("I want ", "").insertion("coffee"));
-    assertEquals("coffee", snapshot("I want ", ", please").insertion("coffee"));
-    assertEquals("coffee", snapshot("I want ", " tomorrow").insertion("coffee"));
+    assertEquals("coffee ", new CompletionEdit(snapshot("I want ", ""), "coffee", true).insertion);
+    assertEquals("coffee", new CompletionEdit(snapshot("I want ", ", please"), "coffee", true).insertion);
+    assertEquals("coffee ", new CompletionEdit(snapshot("I want ", " tomorrow"), "coffee", true).insertion);
     assertTrue(snapshot("I want ", "").validWord("coffee"));
     assertFalse(snapshot("I want ", "").validWord("123"));
     assertFalse(snapshot("I want ", "").validWord("'''"));

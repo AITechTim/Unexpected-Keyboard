@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:hardwareAccelerated="false" android:orientation="vertical" android:background="?attr/colorKeyboard">
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools" android:hardwareAccelerated="false" android:orientation="vertical" android:background="?attr/colorKeyboard">
   <juloo.keyboard2.suggestions.CandidatesView android:id="@+id/candidates_view" style="@style/candidates_view">
     <TextView android:id="@+id/candidates_emoji" style="@style/candidates_emoji"/>
     <TextView android:id="@+id/candidates_left" style="@style/candidates_item"/>
@@ -8,5 +8,11 @@
     <TextView android:id="@+id/candidates_lang_name" style="@style/candidates_lang_name"/>
     <Button android:id="@+id/dictionary_switch" style="@style/change_dictionary"/>
   </juloo.keyboard2.suggestions.CandidatesView>
+  <juloo.keyboard2.suggestions.PhraseView android:id="@+id/phrase_view" tools:ignore="MissingClass"
+    android:layout_width="match_parent" android:layout_height="40dp"
+    android:paddingLeft="12dp" android:paddingRight="12dp" android:gravity="center"
+    android:textColor="?attr/colorLabel" android:textSize="16sp" android:maxLines="1"
+    android:ellipsize="end" android:background="?android:attr/selectableItemBackground"
+    android:visibility="gone"/>
   <juloo.keyboard2.Keyboard2View android:id="@+id/keyboard_view" android:layout_width="match_parent" android:layout_height="wrap_content"/>
 </LinearLayout>

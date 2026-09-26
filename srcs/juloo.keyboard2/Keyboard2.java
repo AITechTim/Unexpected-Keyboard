@@ -41,6 +41,7 @@ public class Keyboard2 extends InputMethodService
   private ViewGroup _keyboard_container_view;
   private Keyboard2View _keyboard_layout_view;
   private CandidatesView _candidates_view;
+  private juloo.keyboard2.suggestions.PhraseView _phrase_view;
   private Suggestions _suggestions;
   private PredictionController _predictions;
   private KeyEventHandler _keyeventhandler;
@@ -166,6 +167,7 @@ public class Keyboard2 extends InputMethodService
   {
     _keyboard_container_view = (ViewGroup)inflate_view(R.layout.keyboard);
     _keyboard_layout_view = (Keyboard2View)_keyboard_container_view.findViewById(R.id.keyboard_view);
+    _phrase_view = _keyboard_container_view.findViewById(R.id.phrase_view);
     _candidates_view = (CandidatesView)_keyboard_container_view.findViewById(R.id.candidates_view);
   }
 
@@ -223,6 +225,9 @@ public class Keyboard2 extends InputMethodService
       _keyeventhandler.dictionary_changed();
     }
     _candidates_view.setVisibility(should_show ? View.VISIBLE : View.GONE);
+    _phrase_view.clear();
+    _phrase_view.setVisibility(should_show && _config.phrase_predictions_enabled
+        && (_config.llm_predictions_enabled || _config.learn_writing) ? View.VISIBLE : View.GONE);
     if (_predictions != null) _predictions.configurationChanged();
   }
 
@@ -268,12 +273,13 @@ public class Keyboard2 extends InputMethodService
   @Override
   public void onStartInputView(EditorInfo info, boolean restarting)
   {
+    _predictions.finish();
     _config.editor_config.refresh(info, getResources());
     refresh_config();
     _currentSpecialLayout = refresh_special_layout();
     _keyboard_layout_view.setKeyboard(current_layout());
-    _keyeventhandler.started(_config);
     _predictions.start(info);
+    _keyeventhandler.started(_config);
     setInputView(_keyboard_container_view);
     Logs.debug_startup_input_view(info, _config);
   }
@@ -383,6 +389,7 @@ public class Keyboard2 extends InputMethodService
     _predictions.finish();
     _keyeventhandler.finished();
     _candidates_view.clear_candidates();
+    _phrase_view.clear();
     _keyboard_layout_view.reset();
   }
 
@@ -577,6 +584,7 @@ public class Keyboard2 extends InputMethodService
     public void set_suggestions(Suggestions suggestions)
     {
       _candidates_view.set_candidates(suggestions);
+      _phrase_view.setCandidate(suggestions.phrase);
     }
 
     public String provide_stateful_key_symbol(KeyValue.Stateful q)

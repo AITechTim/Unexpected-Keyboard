@@ -11,6 +11,7 @@ import android.view.inputmethod.InputConnection;
 import java.util.Iterator;
 import juloo.keyboard2.suggestions.Suggestions;
 import juloo.keyboard2.prediction.Candidate;
+import juloo.keyboard2.prediction.CompletionEdit;
 import juloo.keyboard2.prediction.PredictionController;
 import juloo.keyboard2.prediction.PredictionSnapshot;
 
@@ -23,7 +24,7 @@ public final class KeyEventHandler
   Autocapitalisation _autocap;
   Suggestions _suggestions;
   public PredictionController predictions;
-  private PredictionSnapshot predictionUndo;
+  private CompletionEdit completionUndo;
   CurrentlyTypedWord _typedword;
   /** State of the system modifiers. It is updated whether a modifier is down
       or up and a corresponding key event is sent. */
@@ -63,13 +64,12 @@ public final class KeyEventHandler
       conf.editor_config.should_move_cursor_force_fallback;
     _space_bar_auto_complete = conf.space_bar_auto_complete;
     _last_action = null;
-    predictionUndo = null;
+    completionUndo = null;
   }
 
   public void finished()
   {
-    predictionUndo = null;
-    last_replaced_word = null;
+    completionUndo = null;
     _last_action = null;
   }
 
@@ -148,44 +148,35 @@ public final class KeyEventHandler
   @Override
   public void candidate_entered(Candidate candidate)
   {
-    if (candidate == null) return;
-    if (candidate.source != Candidate.Source.LLM)
-    {
-      suggestion_entered(candidate.text);
-      _last_action = LastAction.SUGGESTION_ENTERED;
-      return;
-    }
     if (predictions == null || !predictions.canAccept(candidate)) return;
-    String insertion = candidate.snapshot.insertion(candidate.text);
-    String old = candidate.snapshot.prefix;
-    replace_surrounding_text(old.length(), 0, insertion);
-    predictions.replaced(candidate.snapshot, insertion);
-    last_replaced_word = old;
-    String expectedBefore = candidate.snapshot.context + insertion;
-    if (expectedBefore.length() > 1024)
-      expectedBefore = expectedBefore.substring(expectedBefore.length() - 1024);
-    predictionUndo = new PredictionSnapshot(0, expectedBefore, candidate.snapshot.after,
-        candidate.snapshot.selection - old.length() + insertion.length());
-    last_replacement_word_len = insertion.length();
-    _last_action = _next_last_action = LastAction.SUGGESTION_ENTERED;
+    CompletionEdit edit = new CompletionEdit(candidate.snapshot, candidate.text,
+        candidate.source != Candidate.Source.EMOJI);
+    predictions.consume();
+    completionUndo = null;
+    if (edit.apply(_recv.getCurrentInputConnection()))
+    {
+      predictions.replaced(edit.after);
+      if (edit.confirm(predictions.snapshot())) completionUndo = edit;
+      _last_action = _next_last_action = LastAction.SUGGESTION_ENTERED;
+    }
+    _typedword.refresh_current_word();
+    predictions.changed();
   }
 
   @Override
   public void suggestion_entered(String text)
   {
-    predictionUndo = null;
-    String old = _typedword.get();
-    int cur_rel = _typedword.cursor_relative();
-    replace_surrounding_text(old.length() + cur_rel, -cur_rel, text);
-    last_replaced_word = old;
-    last_replacement_word_len = text.length();
-    _next_last_action = LastAction.SUGGESTION_ENTERED;
+    if (predictions == null) return;
+    PredictionSnapshot snapshot = _suggestions.snapshot();
+    if (snapshot != null)
+      candidate_entered(new Candidate(text.trim(),
+          text.endsWith(" ") ? Candidate.Source.DICTIONARY : Candidate.Source.EMOJI, snapshot));
   }
 
   @Override
   public void paste_from_clipboard_pane(String content)
   {
-    send_text(content);
+    send_text(content, false);
   }
 
   @Override
@@ -284,7 +275,7 @@ public final class KeyEventHandler
     InputConnection conn = _recv.getCurrentInputConnection();
     if (conn == null)
       return;
-    if (predictions != null && !KeyEvent.isModifierKey(eventCode)) predictions.changed();
+    if (predictions != null && !KeyEvent.isModifierKey(eventCode)) { predictions.stopLearning(); predictions.changed(); }
     conn.sendKeyEvent(new KeyEvent(1, 1, eventAction, eventCode, 0,
           metaState, KeyCharacterMap.VIRTUAL_KEYBOARD, 0,
           KeyEvent.FLAG_SOFT_KEYBOARD | KeyEvent.FLAG_KEEP_TOUCH_MODE));
@@ -295,28 +286,18 @@ public final class KeyEventHandler
     }
   }
 
-  void send_text(String text)
+  void send_text(String text) { send_text(text, text.codePointCount(0, text.length()) == 1); }
+
+  void send_text(String text, boolean learn)
   {
     InputConnection conn = _recv.getCurrentInputConnection();
     if (conn == null)
       return;
+    PredictionSnapshot before = predictions == null ? null : predictions.snapshot();
+    if (!conn.commitText(text, 1)) { if (predictions != null) predictions.stopLearning(); return; }
+    if (predictions != null) predictions.typed(before, text, learn);
     _autocap.typed(text);
     _typedword.typed(text);
-    conn.commitText(text, 1);
-  }
-
-  void replace_surrounding_text(int remove_before, int remove_after,
-      String new_text)
-  {
-    InputConnection conn = _recv.getCurrentInputConnection();
-    if (conn == null)
-      return;
-    conn.beginBatchEdit();
-    conn.deleteSurroundingText(remove_before, remove_after);
-    conn.commitText(new_text, 1);
-    _typedword.remove_surrounding_text(remove_before, remove_after);
-    _typedword.typed(new_text);
-    conn.endBatchEdit();
   }
 
   /** See {!InputConnection.performContextMenuAction}. */
@@ -325,7 +306,7 @@ public final class KeyEventHandler
     InputConnection conn = _recv.getCurrentInputConnection();
     if (conn == null)
       return;
-    if (predictions != null) predictions.changed();
+    if (predictions != null) { predictions.stopLearning(); predictions.changed(); }
     conn.performContextMenuAction(id);
   }
 
@@ -579,14 +560,6 @@ public final class KeyEventHandler
       _recv.selection_state_changed(false);
   }
 
-  /** The word that was replaced by a suggestion when the last action was to
-      enter a suggestion (with the space bar or the candidates view) or [null]
-      otherwise. */
-  String last_replaced_word = null;
-  /** Length of the text before the cursor that should be replaced by
-      backspace. */
-  int last_replacement_word_len = 0;
-
   /** Implement autocorrect when enabled in the settings. */
   void handle_space_bar()
   {
@@ -601,18 +574,18 @@ public final class KeyEventHandler
   /** Undo the last autocorrect. */
   void handle_backspace()
   {
-    if (_last_action == LastAction.SUGGESTION_ENTERED
-        && last_replaced_word != null
-        && (predictionUndo == null || predictions.matchesForUndo(predictionUndo)))
+    if (predictions != null) predictions.stopLearning();
+    CompletionEdit undo = completionUndo;
+    completionUndo = null;
+    if (_last_action == LastAction.SUGGESTION_ENTERED && undo != null
+        && predictions != null && predictions.matchesForUndo(undo.after))
     {
-      replace_surrounding_text(last_replacement_word_len, 0, last_replaced_word);
-      last_replaced_word = null;
-      predictionUndo = null;
+      predictions.consume();
+      if (undo.undo(_recv.getCurrentInputConnection())) predictions.replaced(undo.before);
+      _typedword.refresh_current_word();
+      predictions.changed();
     }
-    else
-    {
-      send_key_down_up(KeyEvent.KEYCODE_DEL);
-    }
+    else send_key_down_up(KeyEvent.KEYCODE_DEL);
   }
 
   public static interface IReceiver extends Suggestions.Callback

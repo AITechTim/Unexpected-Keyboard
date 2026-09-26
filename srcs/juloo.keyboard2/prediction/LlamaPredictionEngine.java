@@ -27,7 +27,7 @@ public final class LlamaPredictionEngine implements PredictionEngine
           throw new IllegalStateException("Model load failed");
       }
       if (cancellation.get() != generation) return new String[0];
-      return nativePredictor.predict(snapshot.context, snapshot.prefix);
+      return nativePredictor.predict(snapshot.context, snapshot.prefix, snapshot.kind == PredictionSnapshot.Kind.PHRASE);
     }
     catch (LinkageError | RuntimeException e)
     {
