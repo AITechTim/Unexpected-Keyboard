@@ -12,7 +12,7 @@
 namespace keyboard {
 using Clock = std::chrono::steady_clock;
 
-// English word decoding. Non-ASCII bytes are retained and validated as Unicode
+// Word decoding. Non-ASCII bytes are retained and validated as Unicode
 // letters by the Java layer, after the whole UTF-8 word has been assembled.
 inline bool word_byte(unsigned char c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '\'' || c >= 128;
@@ -125,7 +125,7 @@ struct Predictor {
     struct Extension { int parent; llama_token token; std::string text; double score; };
 
     std::vector<std::string> predict(std::string context, const std::string & prefix,
-                                     int budget_ms = 250, bool phrase_mode = false) {
+                                     int budget_ms = 250, bool phrase_mode = false, const std::string & language = "") {
         if (!ctx) return {};
         running = cancellation.load();
         deadline = Clock::now() + std::chrono::milliseconds(budget_ms);
@@ -142,6 +142,17 @@ struct Predictor {
                                tokens.size(), true, false);
         if (n < 0) return {};
         tokens.resize(n);
+        if (!language.empty()) {
+            // Keep the language cue even when old editor context is truncated.
+            std::string cue = language == "de" ? "Sprache: Deutsch.\n\n" : "Language: English.\n\n";
+            std::vector<llama_token> lead(cue.size() + 8);
+            int count = llama_tokenize(vocab, cue.data(), cue.size(), lead.data(), lead.size(), true, false);
+            if (count <= 0 || count >= 256) return {};
+            lead.resize(count);
+            if (tokens.size() > 256 - lead.size()) tokens.erase(tokens.begin(), tokens.end() - (256 - lead.size()));
+            lead.insert(lead.end(), tokens.begin(), tokens.end());
+            tokens.swap(lead);
+        }
         if (tokens.empty()) tokens.push_back(llama_vocab_bos(vocab));
         if (tokens[0] < 0) return {};
         if (tokens.size() > 256) tokens.erase(tokens.begin(), tokens.end() - 256);

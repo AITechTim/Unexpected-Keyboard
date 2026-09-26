@@ -87,7 +87,7 @@ public class Keyboard2 extends InputMethodService
   {
     _config.set_current_layout(l);
     _currentSpecialLayout = null;
-    // The active dictionary depends on the current layout.
+    // Keep the selected suggestion language when changing layouts.
     refresh_current_dictionary();
     refresh_candidates_view();
     _keyboard_layout_view.setKeyboard(current_layout());
@@ -195,12 +195,10 @@ public class Keyboard2 extends InputMethodService
 
   private void refresh_current_dictionary()
   {
-    _config.should_show_dictionary_switch =
-      (_config.device_locales.installed.size() > 0);
+    _config.should_show_dictionary_switch = true;
     String dict_name = _dictionaries.get_selected(_config);
     if (dict_name == null)
-      dict_name = (_config.device_locales.default_ != null) ?
-        _config.device_locales.default_.dictionary : null;
+      dict_name = _config.prediction_language.equals("en") ? "en_US" : _config.prediction_language;
     _dictionaries.set_current_dictionary(_config, dict_name);
   }
 
@@ -208,7 +206,9 @@ public class Keyboard2 extends InputMethodService
       context. */
   private void select_dictionary(String dict_name)
   {
+    _config.prediction_language = dict_name.split("_", 2)[0];
     _dictionaries.set_selected(_config, dict_name);
+    Config.globalPrefs().edit().putString("prediction_language", _config.prediction_language).apply();
     refresh_current_dictionary();
     refresh_candidates_view();
   }

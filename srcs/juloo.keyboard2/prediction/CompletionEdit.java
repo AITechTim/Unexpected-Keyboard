@@ -22,7 +22,7 @@ public final class CompletionEdit
     String expected = snapshot.before.substring(0, snapshot.before.length() - snapshot.wordBefore.length()) + insertion;
     after = new PredictionSnapshot(0,
         expected.substring(Math.max(0, expected.length() - 1024)),
-        remaining.substring(consumeSpace ? 1 : 0), start + insertion.length());
+        remaining.substring(consumeSpace ? 1 : 0), start + insertion.length(), PredictionSnapshot.Kind.WORD, snapshot.language);
   }
 
   public boolean apply(InputConnection ic)

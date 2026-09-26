@@ -87,4 +87,20 @@ public class PredictionWorkerTest
     worker.submit(snapshot(2)); executor.runAll();
     assertEquals(java.util.Arrays.asList(0, 1), delivered);
   }
+  @Test public void languageSwitchDuringInferenceClearsContextAndDropsOldResult()
+  {
+    ManualExecutor executor = new ManualExecutor();
+    Engine engine = new Engine();
+    List<String> delivered = new ArrayList<>();
+    PredictionWorker worker = new PredictionWorker(engine, executor, (s, w) -> delivered.add(s.language));
+    worker.submit(snapshot(1));
+    engine.during = () -> {
+      worker.invalidate(true);
+      worker.submit(new PredictionSnapshot(2, "test ", "", 5, PredictionSnapshot.Kind.WORD, "de"));
+    };
+    executor.runAll();
+    assertEquals(java.util.Arrays.asList("de"), delivered);
+    assertTrue(engine.resets > 0);
+    assertEquals(0, engine.closes);
+  }
 }

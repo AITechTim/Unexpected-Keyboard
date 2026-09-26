@@ -18,7 +18,6 @@ import juloo.keyboard2.Config;
 import juloo.keyboard2.KeyValue;
 import juloo.keyboard2.Pointers;
 import juloo.keyboard2.R;
-import juloo.keyboard2.dict.SupportedDictionaries;
 
 public class CandidatesView extends LinearLayout
 {
@@ -85,8 +84,8 @@ public class CandidatesView extends LinearLayout
       }
     }
     int dict_vis =
-      (should_show_dictionary_switch && s.count == 0) ? View.VISIBLE : View.GONE;
-    _dictionary_switch_button.setVisibility(dict_vis);
+      should_show_dictionary_switch ? View.VISIBLE : View.GONE;
+    _dictionary_switch_button.setVisibility(View.GONE);
     _lang_name_view.setVisibility(dict_vis);
   }
 
@@ -110,12 +109,16 @@ public class CandidatesView extends LinearLayout
       _status_no_dict.setVisibility(View.GONE);
     should_show_dictionary_switch = config.should_show_dictionary_switch;
     set_sizes(config);
-    SupportedDictionaries sd = SupportedDictionaries.get(getResources());
-    if (config.current_dictionary_name == null)
-      _lang_name_view.setText(R.string.dictionary_switcher_title);
-    else
-      _lang_name_view.setText(
-          sd.get_display_name(config.current_dictionary_name));
+    _lang_name_view.setText(config.prediction_language.toUpperCase(Locale.ROOT));
+    _lang_name_view.setContentDescription(getResources().getString(R.string.prediction_language_toggle, config.prediction_language.toUpperCase(Locale.ROOT)));
+    _lang_name_view.setOnClickListener(v -> Config.globalPrefs().edit()
+        .putString("prediction_language", config.prediction_language.equals("en") ? "de" : "en").apply());
+    _lang_name_view.setOnLongClickListener(v -> {
+      Config.globalConfig().handler.key_up(KeyValue.getKeyByName("change_dictionary"), Pointers.Modifiers.EMPTY);
+      return true;
+    });
+    _dictionary_switch_button.setVisibility(View.GONE);
+    _lang_name_view.setVisibility(View.VISIBLE);
   }
 
   /** Set the height of the suggestion row and the text size. */
@@ -149,8 +152,7 @@ public class CandidatesView extends LinearLayout
           R.layout.candidates_status_no_dict, null);
       addView(_status_no_dict);
     }
-    Locale current_locale = (config.device_locales.default_ != null) ?
-      Locale.forLanguageTag(config.device_locales.default_.lang_tag) : null;
+    Locale current_locale = Locale.forLanguageTag(config.prediction_language);
     TextView tv = _status_no_dict.findViewById(android.R.id.text1);
     if (tv != null && current_locale != null)
       tv.setText(getResources().getString(
@@ -204,7 +206,6 @@ public class CandidatesView extends LinearLayout
   public static boolean should_show(EditorInfo info)
   {
     int variation = info.inputType & InputType.TYPE_MASK_VARIATION;
-    int flags = info.inputType & InputType.TYPE_MASK_FLAGS;
     switch (info.inputType & InputType.TYPE_MASK_CLASS)
     {
       case InputType.TYPE_CLASS_TEXT:
@@ -219,10 +220,7 @@ public class CandidatesView extends LinearLayout
                suggestions anyway when the flags [NO_SUGGESTIONS] and
                [AUTO_CORRECT] are present at the same time. This happens with
                Google Keep. */
-            if ((flags &
-                  (InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-                   | InputType.TYPE_TEXT_FLAG_AUTO_CORRECT))
-                == InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
+            if (juloo.keyboard2.prediction.PredictionEligibility.suppressesSuggestions(info.inputType))
               return false;
             return true;
         }

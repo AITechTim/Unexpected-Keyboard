@@ -22,12 +22,18 @@ public final class PhraseMemory
     return result.toString();
   }
 
-  public void learn(Collection<String> phrases, long now)
+  static String key(String language, String phrase) { return language + "\u0000" + phrase; }
+  static String phrase(String key) { return key.substring(key.indexOf('\u0000') + 1); }
+
+  public void learn(Collection<String> phrases, long now) { learn("en", phrases, now); }
+
+  public void learn(String language, Collection<String> phrases, long now)
   {
     for (String phrase : phrases)
     {
-      Entry e = entries.get(phrase);
-      entries.put(phrase, new Entry(e == null ? 1 : Math.min(1000000, e.count + 1), now));
+      String key = key(language, phrase);
+      Entry e = entries.get(key);
+      entries.put(key, new Entry(e == null ? 1 : Math.min(1000000, e.count + 1), now));
     }
     prune(now);
   }
@@ -57,8 +63,8 @@ public final class PhraseMemory
     Map<String, Integer> lengths = new HashMap<>();
     for (String key : keys)
     {
-      if (entries.get(key).count < 2) continue;
-      String[] words = key.split(" ");
+      if (!key.startsWith(snapshot.language + "\u0000") || entries.get(key).count < 2) continue;
+      String[] words = phrase(key).split(" ");
       for (int n = Math.min(5, words.length - 1); n >= 1; n--)
       {
         String head = join(Arrays.asList(words).subList(0, n)).toLowerCase(Locale.ROOT) + " ";
@@ -85,7 +91,7 @@ public final class PhraseMemory
     String phrase = null;
     for (String key : keys)
     {
-      String[] words = key.split(" ");
+      String[] words = phrase(key).split(" ");
       String tail = join(Arrays.asList(words).subList(lengths.get(key), words.length));
       if (!snapshot.prefix.isEmpty()) tail = snapshot.prefix + tail.substring(snapshot.prefix.length());
       String word = tail.split(" ")[0];

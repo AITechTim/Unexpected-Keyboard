@@ -5,11 +5,15 @@ import java.util.*;
 /** Deterministic recurring-phrase replay. No private corpus or Android runtime. */
 public final class PhraseReplay
 {
-  static PredictionSnapshot snapshot(String s) { return new PredictionSnapshot(1, s, "", s.length()); }
+  static String language = "en";
+  static PredictionSnapshot snapshot(String s) { return new PredictionSnapshot(1, s, "", s.length(), PredictionSnapshot.Kind.WORD, language); }
   public static void main(String[] args)
   {
+    language = args.length > 0 ? args[0] : "en";
     String[] corpus = { "see you tomorrow morning", "thanks for your help",
       "let me know what you think", "have a great weekend", "I will get back to you" };
+    if (language.equals("de")) corpus = new String[]{"vielen Dank für deine Hilfe", "wir sehen uns morgen wieder",
+      "hoffentlich sehen wir uns bald", "schöne Grüße aus München", "ich melde mich morgen früh"};
     PhraseMemory memory = new PhraseMemory();
     for (int repeat = 0; repeat < 2; repeat++) for (String line : corpus)
     {
@@ -21,7 +25,7 @@ public final class PhraseReplay
         learner.typed(snapshot(before), snapshot(after), Character.toString(c));
         before = after;
       }
-      memory.learn(learner.take(snapshot(before)), repeat + 1);
+      memory.learn(language, learner.take(snapshot(before)), repeat + 1);
     }
     int hits = 0, manual = 0, idealWordTaps = 0, phraseTaps = 0;
     List<Long> timings = new ArrayList<>();

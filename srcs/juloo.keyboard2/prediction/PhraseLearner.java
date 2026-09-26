@@ -15,7 +15,8 @@ public final class PhraseLearner
   {
     if (before == null || after == null || text.codePointCount(0, text.length()) != 1)
     { reset(); return; }
-    if (expected != null && !expected.matches(before.before, before.after, before.selection)) reset();
+    if (!before.language.equals(after.language)) { reset(); return; }
+    if (expected != null && (!expected.language.equals(before.language) || !expected.matches(before.before, before.after, before.selection))) reset();
     // Never start learning a word whose beginning came from another source.
     if (expected == null && !before.prefix.isEmpty()) { reset(); return; }
     String combined = before.before + text;
@@ -47,7 +48,7 @@ public final class PhraseLearner
   public List<String> take(PredictionSnapshot current)
   {
     if (expected == null || current == null
-        || !expected.matches(current.before, current.after, current.selection)) { reset(); return Collections.emptyList(); }
+        || !expected.language.equals(current.language) || !expected.matches(current.before, current.after, current.selection)) { reset(); return Collections.emptyList(); }
     List<String> result = new ArrayList<>(pending);
     pending.clear();
     return result;

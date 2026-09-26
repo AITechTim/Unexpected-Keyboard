@@ -25,7 +25,8 @@ public class PredictionEligibilityTest
   @Test public void honorsEditorPrivacyAndSuggestionFlags()
   {
     assertFalse(PredictionEligibility.allows(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING));
-    assertFalse(PredictionEligibility.allows(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+    assertFalse(PredictionEligibility.allows(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS, 0));
+    assertTrue(PredictionEligibility.allows(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
       | InputType.TYPE_TEXT_FLAG_AUTO_CORRECT, 0));
   }
 }

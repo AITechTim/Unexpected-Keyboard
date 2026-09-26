@@ -46,6 +46,7 @@ public final class Config
   public float slide_step_px;
   public boolean suggestions_enabled;
   public boolean llm_predictions_enabled;
+  public String prediction_language = "en";
   public boolean learn_writing, learning_paused, phrase_predictions_enabled;
   // Let the system handle vibration when false.
   public boolean vibrate_custom;
@@ -150,6 +151,7 @@ public final class Config
     add_number_row = !number_row.equals("no_number_row");
     number_row_symbols = number_row.equals("symbols");
     suggestions_enabled = _prefs.getBoolean("suggestions", true);
+    prediction_language = _prefs.getString("prediction_language", "en");
     llm_predictions_enabled = _prefs.getBoolean("llm_predictions", false);
     learn_writing = _prefs.getBoolean("learn_writing", false);
     learning_paused = _prefs.getBoolean("learning_paused", false);

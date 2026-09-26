@@ -13,9 +13,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /** One immutable model. Network access is used only by an explicit settings action. */
 public final class ModelStore
 {
-  public static final long SIZE = 105453536L;
-  public static final String SHA256 = "b38d0237afc63fa77f35b9f82f394ac2116e77609514461d6bc51deec02a9c91";
-  public static final String URL_STRING = "https://huggingface.co/QuantFactory/SmolLM2-135M-GGUF/resolve/d948db3614be18259a175aafd7689a70f1cb4e2f/SmolLM2-135M.Q4_K_M.gguf";
+  public static final long SIZE = 396704512L;
+  public static final String SHA256 = "7f2f66f6b4438bb69c44b8aefa72004a46712b118b7d005c0f3c520238d991a9";
+  public static final String URL_STRING = "https://huggingface.co/DevQuasar/Qwen.Qwen3-0.6B-Base-GGUF/resolve/eef7489626f22a4fc10a12ef1b3c5f8852d448e3/Qwen.Qwen3-0.6B-Base.Q4_K_M.gguf";
   public static volatile boolean downloading, failed, runtimeFailed;
   public static volatile long downloaded;
   private static final AtomicBoolean cancelled = new AtomicBoolean();
@@ -23,7 +23,16 @@ public final class ModelStore
 
   public static File file(Context context)
   {
-    return new File(context.getNoBackupFilesDir(), "prediction-smollm2-135m-q4km.gguf");
+    return new File(context.getNoBackupFilesDir(), "prediction-qwen3-06b-base-q4km.gguf");
+  }
+
+  public static File legacyFile(Context context)
+  { return new File(context.getNoBackupFilesDir(), "prediction-smollm2-135m-q4km.gguf"); }
+
+  public static File forLanguage(Context context, String language)
+  {
+    File primary = file(context);
+    return primary.isFile() || !language.equals("en") ? primary : legacyFile(context);
   }
 
   public static boolean supported()
@@ -97,7 +106,9 @@ public final class ModelStore
     if (downloading) return false;
     File f = file(context);
     runtimeFailed = false;
-    return !f.exists() || f.delete();
+    boolean removed = !f.exists() || f.delete();
+    File old = legacyFile(context);
+    return (!old.exists() || old.delete()) && removed;
   }
 
 }

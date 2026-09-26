@@ -24,7 +24,7 @@ public final class PredictionController implements AutoCloseable
   private final PhraseLearner learner = new PhraseLearner();
   private final Runnable learn = this::flushLearning;
   private void flushLearning()
-  { if (localEnabled() && !config.learning_paused) store.learn(learner.take(read())); }
+  { if (localEnabled() && !config.learning_paused) store.learn(config.prediction_language, learner.take(read())); }
   private final Runnable phraseRequest = this::capturePhrase;
   private boolean active, fieldAllowed, closed, suspended;
   private int selectionStart = -1, selectionEnd = -1;
@@ -123,10 +123,7 @@ public final class PredictionController implements AutoCloseable
     if (suspended || !active || !fieldAllowed || !config.suggestions_enabled || config.split_layout) return false;
     UserManager users = (UserManager)context.getSystemService(Context.USER_SERVICE);
     if (Build.VERSION.SDK_INT >= 24 && !users.isUserUnlocked()) return false;
-    String language = config.current_dictionary_name;
-    if (language == null && config.device_locales != null && config.device_locales.default_ != null)
-      language = config.device_locales.default_.lang_tag;
-    return language == null || language.equals("en") || language.startsWith("en-") || language.startsWith("en_");
+    return config.prediction_language.equals("en") || config.prediction_language.equals("de");
   }
 
   private boolean localEnabled() { return eligibleField() && config.learn_writing; }
@@ -134,7 +131,7 @@ public final class PredictionController implements AutoCloseable
   private boolean enabled()
   {
     return eligibleField() && config.llm_predictions_enabled && ModelStore.supported()
-      && ModelStore.file(context).isFile();
+      && ModelStore.forLanguage(context, config.prediction_language).isFile();
   }
 
   private PredictionSnapshot read()
@@ -154,7 +151,7 @@ public final class PredictionController implements AutoCloseable
         if (absolute < 0) return null;
         return new PredictionSnapshot(revision,
             content.subSequence(Math.max(0, cursor - 1024), cursor).toString(),
-            content.subSequence(cursor, Math.min(content.length(), cursor + 32)).toString(), absolute);
+            content.subSequence(cursor, Math.min(content.length(), cursor + 32)).toString(), absolute, PredictionSnapshot.Kind.WORD, config.prediction_language);
       }
       // Some editors only implement the older before/after cursor queries.
     }
@@ -165,7 +162,7 @@ public final class PredictionController implements AutoCloseable
     if (before == null || after == null || (selected != null && selected.length() > 0)) return null;
     return new PredictionSnapshot(revision,
         before.subSequence(Math.max(0, before.length() - 1024), before.length()).toString(),
-        after.subSequence(0, Math.min(32, after.length())).toString(), selectionStart);
+        after.subSequence(0, Math.min(32, after.length())).toString(), selectionStart, PredictionSnapshot.Kind.WORD, config.prediction_language);
   }
 
   private void capture()
@@ -187,7 +184,7 @@ public final class PredictionController implements AutoCloseable
   {
     if (closed || snapshot.revision != revision) return false;
     PredictionSnapshot current = read();
-    return current != null && snapshot.matches(current.before, current.after, current.selection);
+    return current != null && snapshot.language.equals(current.language) && snapshot.matches(current.before, current.after, current.selection);
   }
 
   private void publish(PredictionSnapshot snapshot, String[] words)
@@ -217,7 +214,7 @@ public final class PredictionController implements AutoCloseable
   public boolean matchesForUndo(PredictionSnapshot snapshot)
   {
     PredictionSnapshot current = read();
-    return current != null && snapshot.matches(current.before, current.after, current.selection);
+    return current != null && snapshot.language.equals(current.language) && snapshot.matches(current.before, current.after, current.selection);
   }
 
   public void finish()

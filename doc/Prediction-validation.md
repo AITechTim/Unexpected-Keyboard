@@ -1,5 +1,83 @@
 # Prediction validation
 
+## English/German suggestions — 2026-09-26
+
+Implementation follows `4c38d0b` on `feat/offline-word-predictions`.
+The runtime remains pinned to the same llama.cpp revision. The new model is
+DevQuasar Qwen3-0.6B-Base Q4_K_M, revision
+`eef7489626f22a4fc10a12ef1b3c5f8852d448e3`. The downloaded 396,704,512-byte file
+matches SHA-256 `7f2f66f6b4438bb69c44b8aefa72004a46712b118b7d005c0f3c520238d991a9`.
+
+### Automated checks
+
+- **74 Java tests pass**, no failures or skips. New coverage includes the visible
+  EN/DE control with three candidates, preference persistence without a layout
+  change, separate dictionary variants and legacy English selection migration,
+  language changes during inference and partial-word acceptance, German spelling,
+  language-isolated counts, German pause behavior, other-language exclusions,
+  the shared retention limit, transactional database
+  migration, clearing both languages, and legacy-model/partial-download fallback.
+  Existing integrity, cancellation, pause, editor privacy, spacing, repeated taps,
+  and undo tests still pass. Android integration uses Robolectric API 35.
+- **22 native boundary checks pass**, including German umlauts, ß, compounds and
+  multi-word phrases. Both real-model language runs pass concurrent cancellation.
+- `:testDebugUnitTest assembleDebug` tasks succeeded in the forced validation run;
+  the subsequent `lintDebug` task fails on the unchanged **309 errors / 169 warnings**
+  baseline (263 missing translations, 31 API-level issues, 15 class-lookup issues).
+- The updated debug APK passes `zipalign -c -P 16 4` and retains the
+  `juloo.keyboard2.debug` application ID. A final forced test/build run after
+  preserving the other dictionary languages also succeeded (74 tests).
+- Deterministic learned replays recover **5/5 English and 5/5 German phrases**
+  after two repetitions. Remaining manual keys: 95 English / 105 German;
+  ideal single-word taps: 19 each; learned phrase taps: 5 each. Maximum lookup
+  was 8.48 ms English / 6.42 ms German. This measures repeated phrases, not unseen
+  text or model accuracy.
+
+### Multilingual model smoke results
+
+| Measurement | English | German |
+| --- | ---: | ---: |
+| Next-word top-three hits | 16 / 30 | 16 / 30 |
+| Two-character completion top-three hits | 29 / 30 | 19 / 30 |
+| Raw dictionary completion top-three hits | 9 / 30 | 10 / 30 |
+| Cold-context word availability | 30 / 30 | 30 / 30 |
+| Phrase availability | 18 / 30 | 16 / 30 |
+| Warm word p95, including 50 ms debounce | 554 ms | 569 ms |
+| Cold-context inference p95, excluding debounce/load | 434 ms | 530 ms |
+| Phrase inference p95, excluding scheduling | 383 ms | 556 ms |
+| Model load | 848 ms | 1,033 ms |
+| Standalone peak resident memory | 705 MiB | 711 MiB |
+
+Each corpus contains 30 public synthetic prompts. Runs use the same retained
+language cue and 500 ms word / 1,000 ms phrase budgets as the Android runtime.
+Completion prefixes count Unicode characters, including umlauts. The raw native
+dictionary baseline does not reproduce the Java keyboard's character substitutions
+or casing adjustments. Phrase availability is not an accuracy score; samples can
+be repetitive. Timing budgets can be exceeded by tokenization and an in-flight
+native computation step.
+
+These shared-devbox measurements do not establish phone performance. Latency and
+standalone memory exceed the original 200 ms / 300 MiB goals. The APK continues
+to offer dictionary and learned suggestions before model results arrive, and
+model predictions remain experimental and opt-in. Installing the bilingual model
+is an explicit 397 MB download; the older model remains an English-only fallback
+until that download completes.
+
+Roamgate's composer change is separate:
+https://github.com/Cancilico/roamgate/pull/6. Its production web build and full
+pre-commit gate passed (format, lint, type checks, 2,145 tests; one existing live
+SSH test skipped). It is committed and pushed, but not merged or deployed.
+
+### Device checks still required
+
+No phone was connected to ADB. Pixel 8 / Android 17 testing in Obsidian and the
+Roamgate PWA composer remains pending, including actual touch behavior, cold
+loading, language switching during typing, memory, sustained latency and battery
+use. Keep the experimental label and default-off model setting. Roamgate's direct
+terminal remains outside prediction eligibility; compose prose in its composer
+before inserting or sending it.
+
+
 ## Word acceptance, learning, and phrases — 2026-09-26
 
 Implementation follows `13b6412` on `feat/offline-word-predictions`. The pinned

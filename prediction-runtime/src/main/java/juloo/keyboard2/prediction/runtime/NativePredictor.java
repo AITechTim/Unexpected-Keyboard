@@ -16,10 +16,10 @@ public final class NativePredictor implements AutoCloseable
 
   public boolean load(String path) { return load(handle, path); }
 
-  public String[] predict(String context, String prefix, boolean phrase)
+  public String[] predict(String context, String prefix, boolean phrase, int budgetMs, String language)
   {
     byte[][] words = predict(handle, context.getBytes(StandardCharsets.UTF_8),
-        prefix.getBytes(StandardCharsets.UTF_8), phrase);
+        prefix.getBytes(StandardCharsets.UTF_8), phrase, budgetMs, language.getBytes(StandardCharsets.UTF_8));
     String[] result = new String[words.length];
     for (int i = 0; i < words.length; i++)
       result[i] = new String(words[i], StandardCharsets.UTF_8);
@@ -38,7 +38,7 @@ public final class NativePredictor implements AutoCloseable
 
   private static native long create();
   private static native boolean load(long handle, String path);
-  private static native byte[][] predict(long handle, byte[] context, byte[] prefix, boolean phrase);
+  private static native byte[][] predict(long handle, byte[] context, byte[] prefix, boolean phrase, int budgetMs, byte[] language);
   private static native void cancel(long handle);
   private static native void reset(long handle);
   private static native void destroy(long handle);

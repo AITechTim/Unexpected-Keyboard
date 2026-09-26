@@ -122,7 +122,7 @@ public class CompletionIntegrationTest
     java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
     java.util.concurrent.atomic.AtomicReference<PhraseMemory.Match> result = new java.util.concurrent.atomic.AtomicReference<>();
     PhraseStore.get(RuntimeEnvironment.getApplication()).query(
-        new PredictionSnapshot(1, context, "", context.length()), match -> { result.set(match); latch.countDown(); });
+        new PredictionSnapshot(1, context, "", context.length(), PredictionSnapshot.Kind.WORD, Config.globalConfig().prediction_language), match -> { result.set(match); latch.countDown(); });
     assertTrue(latch.await(10, java.util.concurrent.TimeUnit.SECONDS));
     return result.get();
   }
@@ -208,4 +208,35 @@ public class CompletionIntegrationTest
     assertEquals("to", editor.text);
   }
 
+  @Test public void switchingLanguageRejectsPressedCandidateAndPreservesPartialWord()
+  {
+    start("gr", 2);
+    Candidate old = new Candidate("great", Candidate.Source.LLM, controller.snapshot());
+    Config.globalConfig().prediction_language = "de";
+    controller.configurationChanged();
+    keys.candidate_entered(old);
+    assertEquals("gr", editor.text);
+    assertEquals("de", controller.snapshot().language);
+    keys.candidate_entered(new Candidate("größere", Candidate.Source.DICTIONARY, controller.snapshot()));
+    assertEquals("größere ", editor.text);
+    keys.handle_backspace();
+    assertEquals("gr", editor.text);
+  }
+  @Test public void germanLearningPauseAndOtherDictionaryLanguagesStayIsolated() throws Exception
+  {
+    start("", 0); enableLearning();
+    Config config = Config.globalConfig();
+    config.prediction_language = "de"; controller.configurationChanged();
+    type("schöne Grüße morgen \nschöne Grüße morgen "); settleLearning();
+    assertEquals("Grüße morgen", learned("schöne ").phrase);
+    config.learning_paused = true; controller.configurationChanged();
+    type("\nvielen Dank dafür \nvielen Dank dafür "); settleLearning();
+    assertEquals(0, learned("vielen ").words.length);
+    assertEquals("Grüße morgen", learned("schöne ").phrase);
+    config.prediction_language = "en"; controller.configurationChanged();
+    assertEquals(0, learned("schöne ").words.length);
+    config.prediction_language = "fr"; config.learning_paused = false; controller.configurationChanged();
+    type("\nschöne Grüße morgen \nschöne Grüße morgen "); settleLearning();
+    assertEquals(0, learned("schöne ").words.length);
+  }
 }

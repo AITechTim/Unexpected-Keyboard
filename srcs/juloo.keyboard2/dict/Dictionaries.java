@@ -73,13 +73,22 @@ public final class Dictionaries
 
   public Set<String> get_installed() { return _installed_dictionaries; }
 
-  /** The selected dictionary for the current layout. */
+  /** The selected dictionary for the selected suggestion language. */
   public String get_selected(Config config)
   {
-    return _shared_prefs.getString(dict_selection_pref_name(config), null);
+    String selected = _shared_prefs.getString(dict_selection_pref_name(config), null);
+    if (selected == null && config.prediction_language.equals("en"))
+    {
+      String tag = config.device_locales != null && config.device_locales.default_ != null ? config.device_locales.default_.lang_tag : "";
+      String old = _shared_prefs.getString("selection:" + tag + "-" + config.get_current_layout(), null);
+      if (old == null && config.device_locales != null && config.device_locales.default_ != null)
+        old = config.device_locales.default_.dictionary;
+      if (old != null && old.startsWith("en_")) { selected = old; set_selected(config, selected); }
+    }
+    return selected;
   }
 
-  /** Set the dictionary returned by [get_selected()] for the current layout. */
+  /** Set the dictionary returned by [get_selected()] for the selected suggestion language. */
   public void set_selected(Config config, String dict_name)
   {
     _shared_prefs.edit()
@@ -171,8 +180,6 @@ public final class Dictionaries
 
   static String dict_selection_pref_name(Config config)
   {
-    String lang_tag = (config.device_locales.default_ != null) ?
-      config.device_locales.default_.lang_tag : "";
-    return "selection:" + lang_tag + "-" + config.get_current_layout();
+    return "prediction_dictionary:" + config.prediction_language;
   }
 }

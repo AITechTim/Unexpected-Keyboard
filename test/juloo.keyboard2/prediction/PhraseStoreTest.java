@@ -50,4 +50,27 @@ public class PhraseStoreTest
     memory.set(store, null);
     assertEquals(0, query().words.length);
   }
+  @Test public void migratesLegacyDatabaseToEnglishAndKeepsGermanSeparate() throws Exception
+  {
+    File file = new File(RuntimeEnvironment.getApplication().getNoBackupFilesDir(), "phrases.db");
+    try (android.database.sqlite.SQLiteDatabase db = android.database.sqlite.SQLiteDatabase.openDatabase(file.getPath(), null, 0))
+    {
+      db.execSQL("DROP TABLE phrases");
+      db.execSQL("CREATE TABLE phrases (phrase TEXT PRIMARY KEY,count INTEGER NOT NULL,seen INTEGER NOT NULL)");
+      db.execSQL("INSERT INTO phrases VALUES ('see you tomorrow',2,?)", new Object[]{System.currentTimeMillis()});
+      db.setVersion(0);
+    }
+    assertEquals("you tomorrow", query().phrase);
+    store.learn("de", Arrays.asList("see morgen früh", "see morgen früh"));
+    assertEquals("you tomorrow", query().phrase);
+    CountDownLatch done = new CountDownLatch(1);
+    AtomicReference<PhraseMemory.Match> german = new AtomicReference<>();
+    store.query(new PredictionSnapshot(1, "see ", "", 4, PredictionSnapshot.Kind.WORD, "de"), match -> { german.set(match); done.countDown(); });
+    assertTrue(done.await(10, TimeUnit.SECONDS));
+    assertEquals("morgen früh", german.get().phrase);
+    clear();
+    try (android.database.sqlite.SQLiteDatabase db = android.database.sqlite.SQLiteDatabase.openDatabase(file.getPath(), null, 0);
+         android.database.Cursor rows = db.rawQuery("SELECT count(*) FROM phrases", null))
+    { assertTrue(rows.moveToFirst()); assertEquals(0, rows.getInt(0)); assertEquals(2, db.getVersion()); }
+  }
 }

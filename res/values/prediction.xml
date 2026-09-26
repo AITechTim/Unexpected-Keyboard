@@ -2,12 +2,12 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
   <!-- Settings for this personal fork are currently English only. -->
   <string translatable="false" name="prediction_title">Offline word predictions (experimental)</string>
-  <string translatable="false" name="prediction_summary">English next words and short phrases, processed on your phone. Tap a suggestion to accept it.</string>
+  <string translatable="false" name="prediction_summary">English and German next words and short phrases, processed on your phone. Tap a suggestion to accept it.</string>
   <string translatable="false" name="prediction_model_title">Prediction model and learned phrases</string>
-  <string translatable="false" name="prediction_model_summary">Manage the English model or clear learned phrases</string>
-  <string translatable="false" name="prediction_description">Download the English model, then enable offline word predictions in keyboard settings. Your typing stays on your phone. Predictions work without an internet connection after setup. Speed and battery use depend on your device.</string>
-  <string translatable="false" name="prediction_attribution" tools:ignore="TypographyDashes">SmolLM2-135M by Hugging Face, Apache 2.0. Q4_K_M conversion by QuantFactory. Inference powered by llama.cpp, MIT license.</string>
-  <string translatable="false" name="prediction_download">Download model (105 MB)</string>
+  <string translatable="false" name="prediction_model_summary">Manage the English/German model or clear learned phrases</string>
+  <string translatable="false" name="prediction_description">Download the English/German model, then enable offline word predictions in keyboard settings. Tap EN/DE in the suggestion strip to switch language without changing the keys. Hold it to choose or install dictionaries. Your typing stays on your phone. Predictions work without an internet connection after setup. Speed and battery use depend on your device.</string>
+  <string translatable="false" name="prediction_attribution" tools:ignore="TypographyDashes">Qwen3-0.6B-Base by Qwen, Apache 2.0. Q4_K_M conversion by DevQuasar. Legacy English model: SmolLM2-135M by Hugging Face, conversion by QuantFactory. Inference powered by llama.cpp, MIT license.</string>
+  <string translatable="false" name="prediction_download">Download bilingual model (397 MB)</string>
   <string translatable="false" name="prediction_remove">Remove model</string>
   <string translatable="false" name="prediction_ready">Model installed. Enable offline word predictions in keyboard settings to use it.</string>
   <string translatable="false" name="prediction_not_installed">Model not installed.</string>
@@ -19,11 +19,13 @@
   <string translatable="false" name="prediction_phrases">Phrase suggestion row</string>
   <string translatable="false" name="prediction_phrases_summary">Keep the word choices and show a separate short phrase. Tap to insert the whole phrase.</string>
   <string translatable="false" name="prediction_learn">Learn my writing</string>
-  <string translatable="false" name="prediction_learn_summary">Remember recurring English phrases on this phone, outside backups. Works without a model. Excludes sensitive fields and pasted or generated text.</string>
+  <string translatable="false" name="prediction_learn_summary">Remember recurring English and German phrases separately on this phone, outside backups. Works without a model. Excludes sensitive fields and pasted or generated text.</string>
   <string translatable="false" name="prediction_pause">Pause learning</string>
   <string translatable="false" name="prediction_pause_summary">Keep suggesting saved phrases without remembering new typing.</string>
   <string translatable="false" name="prediction_clear">Clear learned phrases</string>
   <string translatable="false" name="prediction_cleared">Learned phrases cleared</string>
   <string translatable="false" name="prediction_accept_phrase">Insert phrase: %1$s</string>
   <string translatable="false" name="prediction_clear_failed">Could not clear learned phrases. Please try again.</string>
+  <string translatable="false" name="prediction_legacy">English model installed. Upgrade for German model predictions; German dictionary and learned phrases already work.</string>
+  <string translatable="false" name="prediction_language_toggle">Suggestion language: %1$s. Tap to switch; hold for dictionaries.</string>
 </resources>

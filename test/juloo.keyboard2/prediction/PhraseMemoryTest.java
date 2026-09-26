@@ -99,4 +99,30 @@ public class PhraseMemoryTest
     assertEquals(0, memory.query(snapshot("tomorrow "), 2).words.length);
   }
 
+  @Test public void languagesHaveSeparateCountsAndPreserveGermanSpelling()
+  {
+    PhraseMemory memory = new PhraseMemory();
+    String phrase = "für größere Überraschungen";
+    memory.learn("en", Arrays.asList(phrase), 1);
+    memory.learn("de", Arrays.asList(phrase), 1);
+    PredictionSnapshot de = new PredictionSnapshot(1, "für ", "", 4, PredictionSnapshot.Kind.WORD, "de");
+    assertEquals(0, memory.query(de, 2).words.length);
+    memory.learn("de", Arrays.asList(phrase), 2);
+    assertEquals("größere Überraschungen", memory.query(de, 3).phrase);
+    assertEquals(0, memory.query(snapshot("für "), 3).words.length);
+    assertTrue(de.validWord("Straßenbahnfahrplan"));
+    assertEquals("de", de.forPhrase().language);
+  }
+
+  @Test public void languagesShareOneRetentionLimit()
+  {
+    PhraseMemory memory = new PhraseMemory();
+    List<String> phrases = new ArrayList<>();
+    for (int i = 0; i < 6000; i++) phrases.add("phrase " + i);
+    memory.learn("en", phrases, 1);
+    memory.learn("de", phrases, 2);
+    assertEquals(10000, memory.entries.size());
+    memory.prune(PhraseMemory.RETENTION + 3);
+    assertTrue(memory.entries.isEmpty());
+  }
 }

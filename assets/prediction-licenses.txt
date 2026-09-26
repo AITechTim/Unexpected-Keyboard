@@ -1,3 +1,9 @@
+Qwen3-0.6B-Base
+Copyright Qwen. Licensed under Apache License 2.0.
+https://huggingface.co/Qwen/Qwen3-0.6B-Base
+GGUF quantization by DevQuasar:
+https://huggingface.co/DevQuasar/Qwen.Qwen3-0.6B-Base-GGUF
+
 SmolLM2-135M
 Copyright Hugging Face. Licensed under Apache License 2.0.
 https://huggingface.co/HuggingFaceTB/SmolLM2-135M

@@ -1,6 +1,6 @@
 # Offline word and phrase predictions (experimental)
 
-This fork offers English next-word predictions, word completions, and a separate
+This fork offers English and German next-word predictions, word completions, and a separate
 short-phrase row. Inference runs on the phone and requires Android 9 or newer
 with a 64-bit ARM process. Optional local phrase learning also works without a
 model, including on devices that cannot run the model. Model predictions and
@@ -8,16 +8,28 @@ learning are disabled by default; dictionary suggestions remain available.
 
 ## Setup and use
 
-1. Open keyboard settings → Prediction model and learned phrases → Download model (105 MB).
+1. Open keyboard settings → Prediction model and learned phrases → Download bilingual model (397 MB).
 2. Wait for the download and checksum verification to finish.
 3. Enable **Offline word predictions (experimental)** in keyboard settings.
-4. Select an English keyboard language/dictionary, and type in an ordinary text
-   field. Tap a candidate or use a completion shortcut to accept it.
+4. Tap **EN / DE** beside the candidates to switch suggestions. The key layout
+   stays unchanged. Hold the button to choose a dictionary variant or open the
+   existing dictionary download screen. English defaults to en_US and German to
+   de; each language remembers its chosen variant. Type in an ordinary text field
+   and tap a candidate or use a completion shortcut to accept it.
 
-The model is SmolLM2-135M Base, quantized to Q4_K_M by QuantFactory. Its download
-is 105,453,536 bytes (about 101 MiB). Model loading happens in the background;
+The selected suggestion language persists across apps and keyboard restarts.
+Other dictionary languages remain available in the long-press chooser, with
+dictionary suggestions only. Tap their language label to return to EN/DE.
+Existing installations start in English and preserve their English dictionary
+variant. A missing dictionary does not block learning or model suggestions.
+
+The model is Qwen3-0.6B-Base, quantized to Q4_K_M by DevQuasar. Its download
+is 396,704,512 bytes (about 378 MiB). Model loading happens in the background;
 dictionary suggestions remain available while it loads. Downloads can be
 canceled or retried from settings. Removing the model also disables predictions.
+Upgrading is explicit: an installed SmolLM2 model keeps serving English until
+the bilingual download finishes; German uses dictionaries and learned phrases
+until then. The model removal button removes both models.
 License texts are available in the model settings screen and bundled APK.
 
 After installation, inference works in airplane mode. The prediction feature
@@ -33,15 +45,19 @@ acceptance, provided the cursor and surrounding text still match the insertion.
 Space-to-complete continues to use the dictionary candidate, never an LLM guess.
 
 The feature excludes passwords, numbers, terminal input, URLs, email addresses,
-selected text, the interior of words, and editors requesting no suggestions or
-no personalized learning. It follows the existing split-layout restriction.
-English is the only evaluated language; a selected non-English dictionary or
-keyboard language disables LLM predictions.
+selected text, the interior of words, and editors requesting no personalized
+learning. Ordinary no-suggestions fields remain excluded; fields also setting
+AUTO_CORRECT follow the existing dictionary exception. It follows the existing
+split-layout restriction.
+
+In Roamgate, use the **composer** for keyboard suggestions, then **Insert** or
+**Send** the draft. Its direct terminal input disables correction to preserve raw
+terminal keystrokes; suggestion availability also depends on the browser.
 
 ## Local learning and phrases
 
 Enable **Learn my writing** in the Suggestions settings to remember recurring
-English wording. After typing a sequence twice, the keyboard can offer its next
+English and German wording, counted separately. After typing a sequence twice, the keyboard can offer its next
 word and a 2–5 word phrase. For example, recurring “see you tomorrow morning”
 can produce “you” in the word strip and “you tomorrow morning” in the phrase row.
 There is no model training or additional download.
@@ -59,10 +75,13 @@ There is no model training or additional download.
   A 700 ms quiet period validates pending observations before saving; immediate
   editing, undo, field changes, or changing the learning controls discards them.
 - Fragments contain 2–6 completed words, frequency, and last-typed time. They
-  are shared across eligible English fields on this phone. No full message or
+  are shared across eligible fields of the selected language on this phone. No full message or
   app history is stored. Passwords and editors requesting no personalized
   learning are excluded. Data lives in private storage outside Android backups.
-- Storage holds at most 10,000 fragments; entries not typed for 90 days expire.
+- Existing phrase databases migrate transactionally into the English namespace.
+  Switching languages discards pending learning and inference, clears token
+  context, and keeps multilingual weights loaded. Pause and clear cover both languages.
+- Storage holds at most 10,000 fragments across both languages; entries not typed for 90 days expire.
   Spaces and common sentence punctuation complete words for learning.
   Learning intentionally excludes the word preceding a correction/acceptance.
 
@@ -72,16 +91,17 @@ There is no model training or additional download.
   a separate Android library provides the JNI/llama.cpp runtime.
 - Requests read at most 1,024 UTF-16 characters before the cursor, plus 32 after
   it for insertion validation. Only the preceding text is sent to the local
-  model, capped at 256 tokens.
+  model, capped at 256 tokens including a retained English/German language cue.
+  This is plain text continuation without a chat template.
 - A 50 ms debounce coalesces edits. There is one running request and at most one
   pending snapshot. New edits cancel old work; editor revisions and text/cursor
   checks prevent stale results from displaying or being inserted.
 - Raw text continuation uses six beams, up to eight generated tokens, two CPU
-  threads and a 250 ms inference deadline. Word boundaries and typed prefixes
+  threads and a 500 ms inference deadline (250 ms with the legacy English model). Word boundaries and typed prefixes
   are checked on decoded bytes, including tokens that span words. The Java
   boundary validates complete Unicode words before displaying them.
 - Phrase generation starts after word inference and at least 250 ms without
-  edits. It uses one constrained continuation, up to 32 tokens, a 500 ms budget,
+  edits. It uses one constrained continuation, up to 32 tokens, a 1,000 ms budget (500 ms for the legacy model),
   and at most five complete words. New edits cancel it. Sentence boundaries stop
   generation; an unfinished last word is dropped. Learned phrases take priority.
   Phrases that cannot fit visibly in the row are not tappable.
@@ -122,17 +142,19 @@ Build the standalone decoder benchmark using the same pinned runtime:
 cmake -S prediction-runtime/benchmark -B /tmp/prediction-bench -DCMAKE_BUILD_TYPE=Release
 cmake --build /tmp/prediction-bench -j2
 ctest --test-dir /tmp/prediction-bench --output-on-failure
-/tmp/prediction-bench/prediction-bench /path/to/model.gguf prediction-runtime/benchmark/english.tsv /path/to/en_US.dict
+/tmp/prediction-bench/prediction-bench /path/to/model.gguf prediction-runtime/benchmark/english.tsv /path/to/en_US.dict en
+/tmp/prediction-bench/prediction-bench /path/to/model.gguf prediction-runtime/benchmark/german.tsv - de
 ```
 
 Use the model URL and SHA-256 in `ModelStore.java`. The optional dictionary is
 Unexpected Keyboard's decompressed `v1/en_US.dict` from its dictionary repository.
 The benchmark prints aggregate counts, warm latency including the 50 ms debounce,
-phrase inference latency, phrase availability, and a cancellation result. Its corpus contains 30 synthetic English phrases
+phrase inference latency, phrase availability, and a cancellation result. Each language corpus contains 30 synthetic phrases
 under CC0; these are smoke tests, not a representative quality evaluation.
 Completion accuracy uses two-letter prefixes. Simulated keystrokes count one tap
 for an accepted word and include its trailing space. Omitting the dictionary
-reports its hit count as -1.
+reports its hit count as -1 (use `-` when passing a language). Cold-context
+availability and inference p95 are reported separately from warm timings.
 
 For device benchmarking, cross-compile this same benchmark with the NDK CMake
 toolchain (`ANDROID_ABI=arm64-v8a`, `ANDROID_PLATFORM=android-28`), push the binary,
@@ -146,6 +168,7 @@ The recurring-phrase replay uses five synthetic phrases, typed twice each:
 mkdir -p /tmp/phrase-replay
 javac -d /tmp/phrase-replay srcs/juloo.keyboard2/prediction/{PredictionSnapshot,PhraseMemory,PhraseLearner}.java prediction-runtime/benchmark/PhraseReplay.java
 java -cp /tmp/phrase-replay juloo.keyboard2.prediction.PhraseReplay
+java -cp /tmp/phrase-replay juloo.keyboard2.prediction.PhraseReplay de
 ```
 
 Its single-word comparison assumes perfect predictions (one tap per remaining
@@ -162,10 +185,17 @@ Until these checks pass, keep the experimental label and default-off setting.
   space and no partial deletion. Rapid repeat taps must not create `tototo`.
   Repeat with the model enabled, with an existing following space, before a
   comma, after emoji, and after moving/selecting text. Check immediate undo.
+- Toggle EN/DE with a partially typed word, while pressing a candidate, and during
+  inference. Verify the key layout stays unchanged and stale candidates cannot
+  insert. Check the preference after app switches and keyboard/process restarts.
+- Repeat in German with umlauts, ß, noun capitalization, and compounds. In
+  Roamgate, compose text with suggestions, then check Insert/Send exactly once.
 - Enable learning, type a short phrase twice with a space at the end and a pause,
   then type its opening word. Verify word-by-word and whole-phrase suggestions,
   persistence after restart, pause behavior, and clearing without resurrection.
-- Target warm end-to-end p95 ≤200 ms and additional steady-state memory <300 MiB.
+- Measure warm end-to-end p95 and additional steady-state memory separately in
+  English and German. The larger model requires re-evaluating the original
+  ≤200 ms / <300 MiB targets; desktop results do not establish device suitability.
   Record cold-load time, sustained typing latency, battery/thermal behavior,
   top-three accuracy, and keystrokes saved versus dictionary-only completion.
 - Verify taps and all three completion shortcuts; space must never accept LLM

@@ -26,5 +26,8 @@ int main() {
     check(phrase_state(" tea please ", " cof", 1, word) == -1);
     check(phrase_state(" café please ", " caf", 1, word) == 0 && word == "café please");
     check(phrase_state(" a ", " a", 1, word) == 0 && word == "a");
-    std::cout << "19 word and phrase boundary checks passed\n";
+    check(word_state(" größere ", " gr", 1, word) == 1 && word == "größere");
+    check(word_state(" Straßenbahnfahrplan.", " Str", 1, word) == 1 && word == "Straßenbahnfahrplan");
+    check(phrase_state(" schöne Grüße morgen!", " sch", 1, word) == 1 && word == "schöne Grüße morgen");
+    std::cout << "22 word and phrase boundary checks passed\n";
 }

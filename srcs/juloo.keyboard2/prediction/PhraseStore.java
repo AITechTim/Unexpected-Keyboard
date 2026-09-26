@@ -24,7 +24,21 @@ public final class PhraseStore implements AutoCloseable
   private SQLiteDatabase open()
   {
     SQLiteDatabase db = SQLiteDatabase.openOrCreateDatabase(new File(context.getNoBackupFilesDir(), "phrases.db"), null);
-    db.execSQL("CREATE TABLE IF NOT EXISTS phrases (phrase TEXT PRIMARY KEY, count INTEGER NOT NULL, seen INTEGER NOT NULL)");
+    db.beginTransaction();
+    try
+    {
+      if (db.getVersion() < 2)
+      {
+        db.execSQL("CREATE TABLE IF NOT EXISTS phrases (phrase TEXT PRIMARY KEY, count INTEGER NOT NULL, seen INTEGER NOT NULL)");
+        db.execSQL("ALTER TABLE phrases RENAME TO phrases_legacy");
+        db.execSQL("CREATE TABLE phrases (language TEXT NOT NULL, phrase TEXT NOT NULL, count INTEGER NOT NULL, seen INTEGER NOT NULL, PRIMARY KEY(language,phrase))");
+        db.execSQL("INSERT INTO phrases SELECT 'en',phrase,count,seen FROM phrases_legacy");
+        db.execSQL("DROP TABLE phrases_legacy");
+        db.setVersion(2);
+      }
+      db.setTransactionSuccessful();
+    }
+    finally { db.endTransaction(); }
     return db;
   }
   private void load()
@@ -34,13 +48,15 @@ public final class PhraseStore implements AutoCloseable
     try (SQLiteDatabase db = open())
     {
       db.delete("phrases", "seen < ?", new String[]{Long.toString(System.currentTimeMillis() - PhraseMemory.RETENTION)});
-      try (Cursor c = db.rawQuery("SELECT phrase,count,seen FROM phrases ORDER BY seen DESC LIMIT 10000", null))
-      { while (c.moveToNext()) loaded.entries.put(c.getString(0), new PhraseMemory.Entry(c.getInt(1), c.getLong(2))); }
+      try (Cursor c = db.rawQuery("SELECT phrase,count,seen,language FROM phrases ORDER BY seen DESC LIMIT 10000", null))
+      { while (c.moveToNext()) loaded.entries.put(PhraseMemory.key(c.getString(3), c.getString(0)), new PhraseMemory.Entry(c.getInt(1), c.getLong(2))); }
     }
     loaded.prune(System.currentTimeMillis());
     memory = loaded;
   }
-  public void learn(List<String> phrases)
+  public void learn(List<String> phrases) { learn("en", phrases); }
+
+  public void learn(String language, List<String> phrases)
   {
     if (phrases.isEmpty()) return;
     long epoch = generation.get();
@@ -48,7 +64,7 @@ public final class PhraseStore implements AutoCloseable
       if (generation.get() != epoch) return;
       try
       {
-        load(); memory.learn(phrases, System.currentTimeMillis());
+        load(); memory.learn(language, phrases, System.currentTimeMillis());
         try (SQLiteDatabase db = open())
         {
           db.beginTransaction();
@@ -57,13 +73,13 @@ public final class PhraseStore implements AutoCloseable
             db.delete("phrases", "seen < ?", new String[]{Long.toString(System.currentTimeMillis() - PhraseMemory.RETENTION)});
             for (String phrase : phrases)
             {
-              PhraseMemory.Entry entry = memory.entries.get(phrase);
+              PhraseMemory.Entry entry = memory.entries.get(PhraseMemory.key(language, phrase));
               if (entry == null) continue;
               ContentValues v = new ContentValues();
-              v.put("phrase", phrase); v.put("count", entry.count); v.put("seen", entry.time);
+              v.put("language", language); v.put("phrase", phrase); v.put("count", entry.count); v.put("seen", entry.time);
               db.insertWithOnConflict("phrases", null, v, SQLiteDatabase.CONFLICT_REPLACE);
             }
-            db.execSQL("DELETE FROM phrases WHERE phrase NOT IN (SELECT phrase FROM phrases ORDER BY seen DESC LIMIT 10000)");
+            db.execSQL("DELETE FROM phrases WHERE rowid NOT IN (SELECT rowid FROM phrases ORDER BY seen DESC LIMIT 10000)");
             db.setTransactionSuccessful();
           }
           finally { db.endTransaction(); }

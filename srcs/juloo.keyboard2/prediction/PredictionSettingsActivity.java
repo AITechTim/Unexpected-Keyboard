@@ -87,12 +87,13 @@ public final class PredictionSettingsActivity extends Activity
       downloading ? R.string.prediction_downloading :
       ModelStore.runtimeFailed ? R.string.prediction_runtime_failed :
       ModelStore.failed ? R.string.prediction_download_failed :
-      installed ? R.string.prediction_ready : R.string.prediction_not_installed;
+      installed ? R.string.prediction_ready :
+      ModelStore.legacyFile(this).isFile() ? R.string.prediction_legacy : R.string.prediction_not_installed;
     status.setText(message);
     progress.setProgress((int)(100 * ModelStore.downloaded / ModelStore.SIZE));
     progress.setVisibility(downloading ? android.view.View.VISIBLE : android.view.View.GONE);
     action.setText(downloading ? android.R.string.cancel : R.string.prediction_download);
     action.setEnabled(ModelStore.supported() && (downloading || !installed));
-    remove.setEnabled(installed && !downloading);
+    remove.setEnabled((installed || ModelStore.legacyFile(this).isFile()) && !downloading);
   }
 }

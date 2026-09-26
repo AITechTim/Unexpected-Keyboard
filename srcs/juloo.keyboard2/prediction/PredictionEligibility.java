@@ -5,10 +5,16 @@ import android.view.inputmethod.EditorInfo;
 
 public final class PredictionEligibility
 {
+  public static boolean suppressesSuggestions(int type)
+  {
+    return (type & (InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS | InputType.TYPE_TEXT_FLAG_AUTO_CORRECT))
+      == InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
+  }
+
   public static boolean allows(int type, int options)
   {
     if ((type & InputType.TYPE_MASK_CLASS) != InputType.TYPE_CLASS_TEXT
-        || (type & InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS) != 0
+        || suppressesSuggestions(type)
         || (options & EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) != 0) return false;
     switch (type & InputType.TYPE_MASK_VARIATION)
     {

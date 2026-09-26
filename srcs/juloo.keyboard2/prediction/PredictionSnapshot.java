@@ -5,6 +5,7 @@ public final class PredictionSnapshot
 {
   public enum Kind { WORD, PHRASE }
   public final Kind kind;
+  public final String language;
   public final long revision;
   public final String before, after, context, prefix, wordBefore, wordAfter;
   public final int selection;
@@ -16,6 +17,12 @@ public final class PredictionSnapshot
 
   public PredictionSnapshot(long revision, String before, String after, int selection, Kind kind)
   {
+    this(revision, before, after, selection, kind, "en");
+  }
+
+  public PredictionSnapshot(long revision, String before, String after, int selection, Kind kind, String language)
+  {
+    this.language = language;
     this.kind = kind;
     this.revision = revision;
     this.before = before;
@@ -75,7 +82,7 @@ public final class PredictionSnapshot
   }
 
   public PredictionSnapshot forPhrase()
-  { return new PredictionSnapshot(revision, before, after, selection, Kind.PHRASE); }
+  { return new PredictionSnapshot(revision, before, after, selection, Kind.PHRASE, language); }
 
   public boolean validPhrase(String phrase)
   {
