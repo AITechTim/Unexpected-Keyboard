@@ -15,8 +15,9 @@ public class PredictionMergeTest
     s.publish_dictionary();
     s.emoji_suggestion = "☕";
     s.set_predictions(new PredictionSnapshot(1, "I want co", "", 9), new String[]{"coffee", "coffee", "unrelated"});
-    assertArrayEquals(new String[]{"coffee", "coat", "cold"}, s.suggestions);
-    assertEquals(Candidate.Source.LLM, s.candidates[0].source);
+    assertArrayEquals(new String[]{"coat", "coffee", "cold"}, s.suggestions);
+    assertEquals("coffee", s.ranked[0].text);
+    assertEquals(Candidate.Source.LLM, s.candidates[1].source);
     assertEquals("coat", s.dictionary_first());
     assertEquals("☕", s.emoji_suggestion);
     s.clear_predictions();

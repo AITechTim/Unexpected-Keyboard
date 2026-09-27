@@ -35,6 +35,20 @@ JNIEXPORT jobjectArray JNICALL Java_juloo_keyboard2_prediction_runtime_NativePre
     }
     return result;
 }
+JNIEXPORT jdoubleArray JNICALL Java_juloo_keyboard2_prediction_runtime_NativePredictor_score(JNIEnv * env, jclass, jlong h, jbyteArray context, jobjectArray candidates, jint budget, jbyteArray language) {
+    std::vector<std::string> words;
+    for (int i = 0; i < env->GetArrayLength(candidates); i++) {
+        auto word = static_cast<jbyteArray>(env->GetObjectArrayElement(candidates, i));
+        words.push_back(bytes(env, word));
+        env->DeleteLocalRef(word);
+    }
+    std::vector<double> scores(words.size(), std::numeric_limits<double>::quiet_NaN());
+    try { scores = ptr(h)->score(bytes(env, context), words, budget, bytes(env, language)); }
+    catch (const std::exception &) { ptr(h)->reset(); }
+    jdoubleArray result = env->NewDoubleArray(scores.size());
+    env->SetDoubleArrayRegion(result, 0, scores.size(), scores.data());
+    return result;
+}
 JNIEXPORT void JNICALL Java_juloo_keyboard2_prediction_runtime_NativePredictor_cancel(JNIEnv *, jclass, jlong h) { ++ptr(h)->cancellation; }
 JNIEXPORT void JNICALL Java_juloo_keyboard2_prediction_runtime_NativePredictor_reset(JNIEnv *, jclass, jlong h) { ptr(h)->reset(); }
 JNIEXPORT void JNICALL Java_juloo_keyboard2_prediction_runtime_NativePredictor_destroy(JNIEnv *, jclass, jlong h) { delete ptr(h); }

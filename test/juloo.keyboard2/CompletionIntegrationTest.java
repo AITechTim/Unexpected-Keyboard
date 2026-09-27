@@ -25,6 +25,7 @@ public class CompletionIntegrationTest
   private Suggestions suggestions;
   private void start(String text, int cursor)
   {
+    if (controller != null) controller.close();
     Context context = RuntimeEnvironment.getApplication();
     Config.initGlobalConfig(context.getSharedPreferences("test", 0), context.getResources(), false, Dictionaries.instance(context));
     Config config = Config.globalConfig();
@@ -113,6 +114,51 @@ public class CompletionIntegrationTest
     keys.candidate_entered(new Candidate("coffee", Candidate.Source.DICTIONARY, controller.snapshot()));
     assertEquals("cof", editor.text);
     assertEquals(0, editor.batchDepth);
+  }
+  @Test public void punctuationMovesBeforeOwnedSpaceAndDisablesCompletionUndo()
+  {
+    start("hel", 3);
+    keys.candidate_entered(new Candidate("hello", Candidate.Source.DICTIONARY, controller.snapshot()));
+    keys.send_text(","); keys.send_text("!");
+    assertEquals("hello,! ", editor.text);
+    keys.handle_backspace(); // Must not restore the original "hel" completion.
+    assertFalse(editor.text.equals("hel"));
+    assertEquals(0, editor.batchDepth);
+  }
+  @Test public void manualSpacesPastedPunctuationAndQuotesArePreserved()
+  {
+    start("hello ", 6); keys.send_text(","); assertEquals("hello ,", editor.text);
+    start("to ", 2);
+    keys.candidate_entered(new Candidate("to", Candidate.Source.DICTIONARY, controller.snapshot()));
+    keys.send_text(","); assertEquals("to ,", editor.text);
+    start("to", 2);
+    keys.candidate_entered(new Candidate("to", Candidate.Source.DICTIONARY, controller.snapshot()));
+    keys.send_text(",", false); assertEquals("to ,", editor.text);
+    start("to", 2);
+    keys.candidate_entered(new Candidate("to", Candidate.Source.DICTIONARY, controller.snapshot()));
+    keys.send_text("'"); assertEquals("to '", editor.text);
+  }
+  @Test public void newlineRemovesOwnedSpaceAndCursorMovesCancelOwnership()
+  {
+    start("to", 2);
+    keys.candidate_entered(new Candidate("to", Candidate.Source.DICTIONARY, controller.snapshot()));
+    keys.send_text("\n"); assertEquals("to\n", editor.text);
+    start("to", 2);
+    keys.candidate_entered(new Candidate("to", Candidate.Source.DICTIONARY, controller.snapshot()));
+    editor.start = editor.end = 1; keys.selection_updated(3, 1, 1);
+    editor.start = editor.end = 3; keys.selection_updated(1, 3, 3);
+    keys.send_text("."); assertEquals("to .", editor.text);
+  }
+  @Test public void failedPunctuationRestoresCursorAndLongContextRetainsOwnership()
+  {
+    start("to", 2);
+    keys.candidate_entered(new Candidate("to", Candidate.Source.DICTIONARY, controller.snapshot()));
+    editor.failCommit = true; keys.send_text(",");
+    assertEquals("to ", editor.text); assertEquals(3, editor.start); assertEquals(editor.start, editor.end);
+    StringBuilder b = new StringBuilder(); for (int i = 0; i < 300; i++) b.append("word "); b.append("to");
+    start(b.toString(), b.length());
+    keys.candidate_entered(new Candidate("to", Candidate.Source.DICTIONARY, controller.snapshot()));
+    keys.send_text("."); keys.send_text("!"); assertTrue(editor.text.endsWith("to.! "));
   }
   private void type(String text)
   { for (int i = 0; i < text.length(); i++) keys.send_text(text.substring(i, i + 1)); }

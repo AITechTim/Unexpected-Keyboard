@@ -6,6 +6,7 @@ public final class PredictionSnapshot
   public enum Kind { WORD, PHRASE }
   public final Kind kind;
   public final String language;
+  public final WordCandidate[] lexical;
   public final long revision;
   public final String before, after, context, prefix, wordBefore, wordAfter;
   public final int selection;
@@ -22,6 +23,12 @@ public final class PredictionSnapshot
 
   public PredictionSnapshot(long revision, String before, String after, int selection, Kind kind, String language)
   {
+    this(revision, before, after, selection, kind, language, new WordCandidate[0]);
+  }
+
+  private PredictionSnapshot(long revision, String before, String after, int selection, Kind kind, String language, WordCandidate[] lexical)
+  {
+    this.lexical = lexical.clone();
     this.language = language;
     this.kind = kind;
     this.revision = revision;
@@ -42,6 +49,9 @@ public final class PredictionSnapshot
       end += Character.charCount(after.codePointAt(end));
     wordAfter = after.substring(0, end);
   }
+
+  public PredictionSnapshot withCandidates(WordCandidate[] words)
+  { return new PredictionSnapshot(revision, before, after, selection, kind, language, words); }
 
   public boolean eligible()
   {

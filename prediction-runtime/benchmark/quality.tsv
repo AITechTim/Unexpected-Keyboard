@@ -1,0 +1,78 @@
+# split language context prefix expected (tabs; context preserves trailing space)
+tune	en	There are some example 	pred	predictions
+tune	en	How do I 	tur	turn
+tune	en		hiben	given
+tune	en	I was 	hiven	given
+tune	en	She 	wal	walks
+tune	en	They 	wal	walk
+tune	en	We have two 	cat	cats
+tune	en	I have one 	cat	cat
+tune	en	Please send 	thier	their
+tune	de	Ich 	geh	gehe
+tune	de	Wir 	geh	gehen
+tune	de	Er 	mach	macht
+tune	de	Sie haben zwei 	Hund	Hunde
+tune	de	Ich habe einen 	Hund	Hund
+tune	de	Vielen 	Dan	Dank
+tune	de	Das ist wirklich 	schön	schön
+diagnostic	en	He 	wor	works
+diagnostic	en	We 	wor	work
+diagnostic	en	She can 	wor	work
+diagnostic	en	Yesterday we 	play	played
+diagnostic	en	The children are 	play	playing
+diagnostic	en	I need three 	book	books
+diagnostic	en	This is a good 	book	book
+diagnostic	en	Please 	helpe	helper
+diagnostic	en	I will be 	thre	there
+diagnostic	en	That sounds 	greta	great
+diagnostic	de	Du 	komm	kommst
+diagnostic	de	Wir 	komm	kommen
+diagnostic	de	Er 	spiel	spielt
+diagnostic	de	Die Kinder 	spiel	spielen
+diagnostic	de	Ich sehe zwei 	Katze	Katzen
+diagnostic	de	Das ist eine 	Katze	Katze
+diagnostic	de	Mit freundlichen 	Grü	Grüßen
+diagnostic	de	Ich möchte etwas 	ess	essen
+diagnostic	de	Das ist 	richitg	richtig
+diagnostic	de	Ich 	bn	bin
+regression	en	They can 	swim	swim
+regression	en	He 	swim	swims
+regression	en	I have three 	dog	dogs
+regression	en	This is my 	dog	dog
+regression	en	She is 	read	reading
+regression	en	We will 	read	read
+regression	en	I need a 	helpe	helper
+regression	en	He was 	gievn	given
+regression	en	Thank 	yuo	you
+regression	en	The sun is 	shin	shining
+regression	de	Du 	mach	machst
+regression	de	Wir 	mach	machen
+regression	de	Ich 	lern	lerne
+regression	de	Ihr 	lern	lernt
+regression	de	Das sind zwei 	Bäum	Bäume
+regression	de	Das ist ein 	Bau	Baum
+regression	de	Ich wünsche schöne 	Träu	Träume
+regression	de	Vielen Dank für deine 	Hil	Hilfe
+regression	de	Ich habe es 	geshen	gesehen
+regression	de	Sie kann gut 	schwimm	schwimmen
+# Final holdout written after implementation was frozen; not used for further changes.
+holdout	en	Every day he 	driv	drives
+holdout	en	They are 	driv	driving
+holdout	en	We saw two 	bird	birds
+holdout	en	One little 	bird	bird
+holdout	en	I have 	alreayd	already
+holdout	en	I need your 	addres	address
+holdout	en	Can you 	ope	open
+holdout	en	She is 	writ	writing
+holdout	en	Please 	follo	follow
+holdout	en	We were 	talk	talking
+holdout	de	Er 	trink	trinkt
+holdout	de	Wir 	trink	trinken
+holdout	de	Ich 	hab	habe
+holdout	de	Die Kinder 	hab	haben
+holdout	de	zwei kleine 	Häus	Häuser
+holdout	de	Sie hat eine 	Frag	Frage
+holdout	de	Ich habe dich 	verst	verstanden
+holdout	de	Das ist 	wichtgi	wichtig
+holdout	de	Wir müssen 	wart	warten
+holdout	de	Ich wünsche gute 	Bess	Besserung

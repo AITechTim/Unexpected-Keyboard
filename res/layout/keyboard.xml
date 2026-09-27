@@ -2,9 +2,13 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools" android:hardwareAccelerated="false" android:orientation="vertical" android:background="?attr/colorKeyboard">
   <juloo.keyboard2.suggestions.CandidatesView android:id="@+id/candidates_view" style="@style/candidates_view">
     <TextView android:id="@+id/candidates_emoji" style="@style/candidates_emoji"/>
-    <TextView android:id="@+id/candidates_left" style="@style/candidates_item"/>
-    <TextView android:id="@+id/candidates_middle" style="@style/candidates_item"/>
-    <TextView android:id="@+id/candidates_right" style="@style/candidates_item"/>
+    <FrameLayout android:id="@+id/candidates_word_area" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+      <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal">
+        <TextView android:id="@+id/candidates_left" style="@style/candidates_item"/>
+        <TextView android:id="@+id/candidates_middle" style="@style/candidates_item"/>
+        <TextView android:id="@+id/candidates_right" style="@style/candidates_item"/>
+      </LinearLayout>
+    </FrameLayout>
     <TextView android:id="@+id/candidates_lang_name" style="@style/candidates_lang_name"/>
     <Button android:id="@+id/dictionary_switch" style="@style/change_dictionary"/>
   </juloo.keyboard2.suggestions.CandidatesView>

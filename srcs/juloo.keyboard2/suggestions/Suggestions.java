@@ -1,14 +1,9 @@
 package juloo.keyboard2.suggestions;
 
-import java.util.Arrays;
-import juloo.keyboard2.prediction.Candidate;
-import juloo.keyboard2.prediction.PredictionSnapshot;
-import java.util.List;
+import juloo.keyboard2.prediction.*;
+import java.util.*;
 import juloo.cdict.Cdict;
-import juloo.keyboard2.dict.Dictionaries;
 import juloo.keyboard2.Config;
-import juloo.keyboard2.ComposeKey;
-import juloo.keyboard2.ComposeKeyData;
 
 /** Keep track of the word being typed and provide suggestions for
     [CandidatesView]. */
@@ -16,12 +11,10 @@ public final class Suggestions
 {
   Callback _callback;
   Config _config;
-  boolean _enabled;
 
-  /** Current suggestions. The best suggestion is at index [0]. */
+  /** Physical slots: center, right, left. Quality order is held separately in ranked. */
   public String[] suggestions = new String[MAX_COUNT];
-  /** Number of suggestions at the beginning of the [suggestions] array that
-      are not [null]. */
+  /** Number of non-empty slots (holes are retained). */
   public int count = 0;
   public String emoji_suggestion = null;
   public final Candidate[] candidates = new Candidate[MAX_COUNT];
@@ -29,6 +22,9 @@ public final class Suggestions
   private int dictionary_count;
 
   private PredictionSnapshot editor;
+  private WordCandidate[] lexical = new WordCandidate[0];
+  private final StableSlots slots = new StableSlots();
+  public Candidate[] ranked = new Candidate[0];
   private String[] learned = new String[0], model = new String[0];
   public Candidate phrase;
 
@@ -36,14 +32,42 @@ public final class Suggestions
 
   public String dictionary_first() { return dictionary_count > 0 ? dictionary[0] : null; }
 
-  public void bind(PredictionSnapshot snapshot)
-  { editor = snapshot; merge(); }
+  public WordCandidate[] lexicalCandidates()
+  {
+    // Learned continuations join the same bounded scoring request while typing.
+    if (lexical.length == 0) return lexical.clone();
+    LinkedHashMap<String, WordCandidate> pool = new LinkedHashMap<>();
+    for (String word : learned) if (editor != null && WordForms.fits(editor, word) && pool.size() < 2)
+      pool.put(word, new WordCandidate(word, WordCandidate.Match.COMPLETION, 12, 0));
+    for (WordCandidate word : lexical) if (pool.size() < 48) pool.put(word.text, word);
+    return pool.values().toArray(new WordCandidate[0]);
+  }
+
+  public void bind(PredictionSnapshot snapshot) { editor = snapshot; merge(); }
+
+  /** One editor revision is published atomically, with freshly queried dictionary evidence. */
+  public void refresh(PredictionSnapshot snapshot)
+  {
+    boolean continuing = editor != null && snapshot != null && editor.language.equals(snapshot.language)
+      && editor.context.equals(snapshot.context) && editor.after.equals(snapshot.after)
+      && editor.selection - editor.prefix.length() == snapshot.selection - snapshot.prefix.length()
+      && snapshot.wordAfter.isEmpty();
+    if (!continuing) { slots.reset(); learned = model = new String[0]; }
+    editor = snapshot; phrase = null;
+    if (snapshot == null) { clear(); merge(); return; }
+    lexical = _config != null && !_config.editor_config.should_show_candidates_view ? new WordCandidate[0] : lookup(snapshot.wordBefore);
+    dictionary_count = 0;
+    List<WordCandidate> fallback = new ArrayList<>(Arrays.asList(lexical));
+    Collections.sort(fallback, (a,b) -> a.match == WordCandidate.Match.EXACT && b.match != a.match ? -1 :
+        b.match == WordCandidate.Match.EXACT && a.match != b.match ? 1 : Double.compare(b.prior(), a.prior()));
+    for (WordCandidate c : fallback) if (dictionary_count < MAX_COUNT) dictionary[dictionary_count++] = c.text;
+    emoji_suggestion = query_emoji(apply_substitutions(snapshot.wordBefore));
+    merge();
+  }
 
   public void invalidate()
   {
-    editor = null; phrase = null;
-    learned = model = new String[0];
-    merge();
+    clear(); slots.reset(); merge();
   }
 
   public void clear_predictions()
@@ -65,31 +89,44 @@ public final class Suggestions
 
   private void merge()
   {
-    count = 0;
-    Arrays.fill(suggestions, null); Arrays.fill(candidates, null);
-    append(learned, Candidate.Source.LEARNED);
-    append(model, Candidate.Source.LLM);
-    append(Arrays.copyOf(dictionary, dictionary_count), Candidate.Source.DICTIONARY);
+    LinkedHashMap<String, Candidate> choices = new LinkedHashMap<>();
+    // Contextually ranked results already include dictionary corrections.
+    if (editor != null && editor.prefix.isEmpty()) append(choices, learned, Candidate.Source.LEARNED);
+    append(choices, model, Candidate.Source.LLM);
+    append(choices, learned, Candidate.Source.LEARNED);
+    List<WordCandidate> local = new ArrayList<>(Arrays.asList(lexical));
+    Collections.sort(local, (a,b) -> Double.compare(b.prior(), a.prior()));
+    for (WordCandidate c : local) append(choices, new String[]{c.text}, Candidate.Source.DICTIONARY);
+    append(choices, Arrays.copyOf(dictionary, dictionary_count), Candidate.Source.DICTIONARY);
+    ranked = choices.values().toArray(new Candidate[0]);
+    count = ranked.length;
+    Candidate[] displayed = slots.assign(ranked);
+    for (int i = 0; i < MAX_COUNT; i++)
+    { candidates[i] = displayed[i]; suggestions[i] = displayed[i] == null ? null : displayed[i].text; }
     _callback.set_suggestions(this);
   }
 
-  private void append(String[] words, Candidate.Source source)
+  private void append(Map<String, Candidate> choices, String[] words, Candidate.Source source)
   {
     for (String word : words)
     {
-      if (count == MAX_COUNT) return;
-      if (word == null || contains(word, count)) continue;
-      if (source != Candidate.Source.DICTIONARY && (editor == null || !editor.validWord(word))) continue;
-      suggestions[count] = word;
-      candidates[count++] = new Candidate(word, source, editor);
+      if (choices.size() == MAX_COUNT) return;
+      if (word == null || choices.containsKey(word)) continue;
+      boolean duplicate = false;
+      for (String existing : choices.keySet()) duplicate |= WordForms.folded(existing).equals(WordForms.folded(word));
+      if (duplicate) continue;
+      if (editor != null && !WordForms.fits(editor, word)) continue;
+      if (editor == null && source != Candidate.Source.DICTIONARY) continue;
+      choices.put(word, new Candidate(word, source, editor));
     }
   }
 
-  private boolean contains(String word, int n)
+  private WordCandidate[] lookup(String typed)
   {
-    for (int i = 0; i < n; i++) if (word.equalsIgnoreCase(suggestions[i])) return true;
-    return false;
+    if (_config == null || _config.current_dictionary == null) return new WordCandidate[0];
+    return LexicalCandidates.find(typed, new CdictLexicon(_config.current_dictionary), _config.prediction_neighbors);
   }
+
   /** Number of suggestions in [suggestions]. */
   public static final int MAX_COUNT = 3;
 
@@ -101,19 +138,12 @@ public final class Suggestions
 
   public void started()
   {
-    _enabled = _config.editor_config.should_show_candidates_view;
     clear();
   }
 
   public void currently_typed_word(String word)
   {
-    if (!_enabled)
-      return;
-    if (word.length() < 2 || _config.current_dictionary == null)
-      clear();
-    else
-      query_suggestions(word);
-    publish_dictionary();
+    // The controller refreshes from the actual editor immediately after this callback.
   }
 
   void publish_dictionary()
@@ -127,48 +157,16 @@ public final class Suggestions
   void clear()
   {
     count = dictionary_count = 0;
+    lexical = new WordCandidate[0]; slots.reset();
     editor = null; learned = model = new String[0]; phrase = null;
     for (int i = 0; i < MAX_COUNT; i++)
     { suggestions[i] = dictionary[i] = null; candidates[i] = null; }
     emoji_suggestion = null;
   }
 
-  int query_suggestions(String word)
-  {
-    Cdict dict = _config.current_dictionary;
-    boolean first_char_upper = Character.isUpperCase(word.charAt(0));
-    word = apply_substitutions(word);
-    Cdict.Result r = dict.find(word);
-    int i = 0;
-    if (r.found)
-      suggestions[i++] = dict.word(r.index);
-    int[] suffixes = dict.suffixes(r, MAX_COUNT);
-    // Disable distance search for small words
-    int[] dist = (word.length() < 3 || i + 1 >= MAX_COUNT) ? NO_RESULTS :
-      dict.distance(word, 1, MAX_COUNT);
-    for (int j = 0; j < MAX_COUNT && i < MAX_COUNT; j++)
-    {
-      if (suffixes.length > j)
-        suggestions[i++] = dict.word(suffixes[j]);
-      if (dist.length > j && i < MAX_COUNT)
-        suggestions[i++] = dict.word(dist[j]);
-    }
-    if (first_char_upper)
-      capitalize_results(suggestions, i);
-    emoji_suggestion = query_emoji(word); // word with substitutions applied
-    count = i;
-    return i;
-  }
-
-  static void capitalize_results(String[] s, int count)
-  {
-    for (int i = 0; i < count; i++)
-      s[i] = s[i].substring(0, 1).toUpperCase() + s[i].substring(1);
-  }
-
   String query_emoji(String word)
   {
-    Cdict dict = _config.emoji_dictionary;
+    Cdict dict = _config == null ? null : _config.emoji_dictionary;
     // Disable emoji suggestion for short words
     if (dict == null || word.length() < 3)
       return null;
@@ -186,18 +184,8 @@ public final class Suggestions
       example. */
   String apply_substitutions(String w)
   {
-    StringBuilder b = new StringBuilder(w);
-    int len = w.length();
-    for (int i = 0; i < len; i++)
-    {
-      char r =
-        ComposeKey.transform_char(ComposeKeyData.substitutions, b.charAt(i));
-      if (r != 0) b.setCharAt(i, r);
-    }
-    return b.toString();
+    return CdictLexicon.aliases(w);
   }
-
-  static final int[] NO_RESULTS = new int[0];
 
   public static interface Callback
   {

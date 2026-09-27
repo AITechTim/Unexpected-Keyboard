@@ -26,6 +26,14 @@ public final class NativePredictor implements AutoCloseable
     return result;
   }
 
+  public double[] score(String context, String[] candidates, int budgetMs, String language)
+  {
+    byte[][] words = new byte[candidates.length][];
+    for (int i = 0; i < words.length; i++) words[i] = candidates[i].getBytes(StandardCharsets.UTF_8);
+    return score(handle, context.getBytes(StandardCharsets.UTF_8), words, budgetMs, language.getBytes(StandardCharsets.UTF_8));
+  }
+
+  private static native double[] score(long handle, byte[] context, byte[][] words, int budgetMs, byte[] language);
   public synchronized void cancel() { if (handle != 0) cancel(handle); }
   public void reset() { reset(handle); }
 

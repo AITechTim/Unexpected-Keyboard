@@ -25,6 +25,7 @@ public final class KeyEventHandler
   Suggestions _suggestions;
   public PredictionController predictions;
   private CompletionEdit completionUndo;
+  private final juloo.keyboard2.prediction.SmartSpace smartSpace = new juloo.keyboard2.prediction.SmartSpace();
   CurrentlyTypedWord _typedword;
   /** State of the system modifiers. It is updated whether a modifier is down
       or up and a corresponding key event is sent. */
@@ -65,11 +66,13 @@ public final class KeyEventHandler
     _space_bar_auto_complete = conf.space_bar_auto_complete;
     _last_action = null;
     completionUndo = null;
+    smartSpace.clear();
   }
 
   public void finished()
   {
     completionUndo = null;
+    smartSpace.clear();
     _last_action = null;
   }
 
@@ -78,7 +81,7 @@ public final class KeyEventHandler
   {
     _autocap.selection_updated(oldSelStart, newSelStart);
     _typedword.selection_updated(oldSelStart, newSelStart, newSelEnd);
-    if (predictions != null) predictions.selection(newSelStart, newSelEnd);
+    if (predictions != null) { predictions.selection(newSelStart, newSelEnd); smartSpace.validate(predictions.snapshot()); }
   }
 
   /** A key is being pressed. There will not necessarily be a corresponding
@@ -153,10 +156,11 @@ public final class KeyEventHandler
         candidate.source != Candidate.Source.EMOJI);
     predictions.consume();
     completionUndo = null;
+    smartSpace.clear();
     if (edit.apply(_recv.getCurrentInputConnection()))
     {
       predictions.replaced(edit.after);
-      if (edit.confirm(predictions.snapshot())) completionUndo = edit;
+      if (edit.confirm(predictions.snapshot())) { completionUndo = edit; smartSpace.completed(edit); }
       _last_action = _next_last_action = LastAction.SUGGESTION_ENTERED;
     }
     _typedword.refresh_current_word();
@@ -266,6 +270,16 @@ public final class KeyEventHandler
   /** Ignores currently pressed system modifiers. */
   void send_key_down_up(int keyCode, int metaState)
   {
+    if (keyCode == KeyEvent.KEYCODE_ENTER && metaState == 0 && predictions != null)
+    {
+      PredictionSnapshot before = predictions.snapshot();
+      if (smartSpace.applies(before, "\n"))
+      {
+        completionUndo = null;
+        if (smartSpace.remove(_recv.getCurrentInputConnection(), before))
+          predictions.replaced(new PredictionSnapshot(0, "", "", before.selection - 1));
+      }
+    }
     send_keyevent(KeyEvent.ACTION_DOWN, keyCode, metaState);
     send_keyevent(KeyEvent.ACTION_UP, keyCode, metaState);
   }
@@ -275,6 +289,7 @@ public final class KeyEventHandler
     InputConnection conn = _recv.getCurrentInputConnection();
     if (conn == null)
       return;
+    if (!KeyEvent.isModifierKey(eventCode)) smartSpace.clear();
     if (predictions != null && !KeyEvent.isModifierKey(eventCode)) { predictions.stopLearning(); predictions.changed(); }
     conn.sendKeyEvent(new KeyEvent(1, 1, eventAction, eventCode, 0,
           metaState, KeyCharacterMap.VIRTUAL_KEYBOARD, 0,
@@ -294,6 +309,21 @@ public final class KeyEventHandler
     if (conn == null)
       return;
     PredictionSnapshot before = predictions == null ? null : predictions.snapshot();
+    if (learn && smartSpace.applies(before, text))
+    {
+      completionUndo = null;
+      boolean success = smartSpace.apply(conn, before, text);
+      if (predictions != null)
+      {
+        predictions.stopLearning();
+        if (success) predictions.replaced(new PredictionSnapshot(0, "", "",
+            before.selection + (text.equals("\n") ? 0 : text.length()), PredictionSnapshot.Kind.WORD, before.language));
+      }
+      _typedword.refresh_current_word();
+      if (success) _autocap.typed(text);
+      return;
+    }
+    smartSpace.clear();
     if (!conn.commitText(text, 1)) { if (predictions != null) predictions.stopLearning(); return; }
     if (predictions != null) predictions.typed(before, text, learn);
     _autocap.typed(text);
@@ -307,6 +337,7 @@ public final class KeyEventHandler
     if (conn == null)
       return;
     if (predictions != null) { predictions.stopLearning(); predictions.changed(); }
+    smartSpace.clear();
     conn.performContextMenuAction(id);
   }
 
@@ -577,6 +608,7 @@ public final class KeyEventHandler
     if (predictions != null) predictions.stopLearning();
     CompletionEdit undo = completionUndo;
     completionUndo = null;
+    smartSpace.clear();
     if (_last_action == LastAction.SUGGESTION_ENTERED && undo != null
         && predictions != null && predictions.matchesForUndo(undo.after))
     {

@@ -1,7 +1,7 @@
 # Offline word and phrase predictions (experimental)
 
-This fork offers English and German next-word predictions, word completions, and a separate
-short-phrase row. Inference runs on the phone and requires Android 9 or newer
+This fork offers English and German next-word predictions, word completions, and an optional
+short-phrase row (off by default). Inference runs on the phone and requires Android 9 or newer
 with a 64-bit ARM process. Optional local phrase learning also works without a
 model, including on devices that cannot run the model. Model predictions and
 learning are disabled by default; dictionary suggestions remain available.
@@ -43,6 +43,17 @@ already exists, tapping it advances without duplicating it. Existing ordinary
 spaces are crossed without adding another; following punctuation is preserved. An immediate backspace undoes the
 acceptance, provided the cursor and surrounding text still match the insertion.
 Space-to-complete continues to use the dictionary candidate, never an LLM guess.
+Immediately typed punctuation (`. , ! ? ; : … ) ] }`) moves before a space inserted
+by accepting a suggestion: `hello ` then `,` becomes `hello, `. Repeated punctuation
+keeps that trailing space; Enter removes it. Manually typed or pre-existing spaces,
+pasted punctuation and ambiguous quotes are preserved. Cursor movement or another
+edit ends ownership of the space.
+
+The strip has three fixed word slots plus reserved emoji and language controls.
+While continuing a word, a suggestion that remains among the best three keeps its
+position. New winners replace dropped words in free slots. Empty slots stay blank
+and cannot be tapped. The strip freezes during a press; accepting a stale editor
+snapshot is rejected. Completion shortcuts use the visible slots.
 
 The feature excludes passwords, numbers, terminal input, URLs, email addresses,
 selected text, the interior of words, and editors requesting no personalized
@@ -62,8 +73,10 @@ word and a 2–5 word phrase. For example, recurring “see you tomorrow morning
 can produce “you” in the word strip and “you tomorrow morning” in the phrase row.
 There is no model training or additional download.
 
-- **Phrase suggestion row** reserves a separate row while predictions or learning
-  are enabled. It can be turned off without disabling the three word choices.
+- **Phrase suggestion row** is experimental and off by default. This update also
+  switches it off once for existing installations, reclaiming the row's height.
+  You can explicitly enable it again; that choice survives later restarts. When
+  off, no model phrase jobs run and learned next-word suggestions still work.
   Tap the row to insert the whole visible phrase; Backspace immediately undoes it.
 - **Pause learning** stops new collection while keeping saved suggestions.
   Turning **Learn my writing** off stops both collection and learned suggestions.
@@ -96,11 +109,23 @@ There is no model training or additional download.
 - A 50 ms debounce coalesces edits. There is one running request and at most one
   pending snapshot. New edits cancel old work; editor revisions and text/cursor
   checks prevent stale results from displaying or being inserted.
-- Raw text continuation uses six beams, up to eight generated tokens, two CPU
+- While typing, literal dictionary prefixes, aliases, exact matches, bounded
+  spelling corrections, transpositions, and dictionary-validated short inflections
+  form a pool of at most 48 candidates. Two nearby-key substitutions are checked
+  for words of 5–24 characters, using the active layout and at most 1,024 exact
+  lookups. Actual Unicode edit distance filters the dictionary's permissive matches.
+- The model scores candidate words and their trailing boundary through a shared
+  token trie, with at most six active prefix branches at each decoding step. Final ranking
+  combines likelihood, dictionary frequency and an edit penalty. It preserves German
+  spelling/case and removes duplicate case variants. A timeout uses lexical ranking;
+  it never compares incomplete likelihoods with finished candidates. No new model
+  download is required. Coverage still depends on the dictionary; grammar remains
+  imperfect, particularly where an inflected form is absent from the pool.
+- Between words (or without a lexical pool), raw continuation uses six beams, up to eight generated tokens, two CPU
   threads and a 500 ms inference deadline (250 ms with the legacy English model). Word boundaries and typed prefixes
   are checked on decoded bytes, including tokens that span words. The Java
   boundary validates complete Unicode words before displaying them.
-- Phrase generation starts after word inference and at least 250 ms without
+- When explicitly enabled, phrase generation starts after word inference and at least 250 ms without
   edits. It uses one constrained continuation, up to 32 tokens, a 1,000 ms budget (500 ms for the legacy model),
   and at most five complete words. New edits cancel it. Sentence boundaries stop
   generation; an unfinished last word is dropped. Learned phrases take priority.
@@ -156,6 +181,19 @@ for an accepted word and include its trailing space. Omitting the dictionary
 reports its hit count as -1 (use `-` when passing a language). Cold-context
 availability and inference p95 are reported separately from warm timings.
 
+The candidate-ranking replay runs the production Java candidate pool and ranker,
+actual dictionaries and the native scorer. After an Android build, on a Linux host:
+
+```sh
+JAVA_HOME=/path/to/jdk prediction-runtime/benchmark/quality-replay.sh model.gguf en.dict de.dict holdout
+/tmp/keyboard-quality-bench/score-test model.gguf
+```
+
+`quality.tsv` contains public synthetic tuning and diagnostic cases plus a final independent holdout
+set. Results include cold inference and warm p95 with the 50 ms debounce; model
+loading, editor IPC and rendering are excluded. See [Prediction-validation.md](Prediction-validation.md)
+for measured results and limitations. Run only one model benchmark/build at a time.
+
 For device benchmarking, cross-compile this same benchmark with the NDK CMake
 toolchain (`ANDROID_ABI=arm64-v8a`, `ANDROID_PLATFORM=android-28`), push the binary,
 model, corpus and dictionary to `/data/local/tmp/`, and run it through `adb shell`.
@@ -166,7 +204,7 @@ The recurring-phrase replay uses five synthetic phrases, typed twice each:
 
 ```sh
 mkdir -p /tmp/phrase-replay
-javac -d /tmp/phrase-replay srcs/juloo.keyboard2/prediction/{PredictionSnapshot,PhraseMemory,PhraseLearner}.java prediction-runtime/benchmark/PhraseReplay.java
+javac -d /tmp/phrase-replay srcs/juloo.keyboard2/prediction/{PredictionSnapshot,WordCandidate,PhraseMemory,PhraseLearner}.java prediction-runtime/benchmark/PhraseReplay.java
 java -cp /tmp/phrase-replay juloo.keyboard2.prediction.PhraseReplay
 java -cp /tmp/phrase-replay juloo.keyboard2.prediction.PhraseReplay de
 ```

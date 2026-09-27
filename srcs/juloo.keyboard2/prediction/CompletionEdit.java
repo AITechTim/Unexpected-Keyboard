@@ -9,6 +9,7 @@ public final class CompletionEdit
   public PredictionSnapshot after;
   public final String original, insertion;
   public final int start;
+  public final boolean insertedSpace;
 
   public CompletionEdit(PredictionSnapshot snapshot, String text, boolean space)
   {
@@ -17,6 +18,7 @@ public final class CompletionEdit
     String remaining = snapshot.after.substring(suffix);
     boolean consumeSpace = space && remaining.startsWith(" ");
     original = snapshot.wordBefore + snapshot.after.substring(0, suffix + (consumeSpace ? 1 : 0));
+    insertedSpace = space && remaining.isEmpty();
     insertion = text + (space && (remaining.isEmpty() || consumeSpace) ? " " : "");
     start = snapshot.selection - snapshot.wordBefore.length();
     String expected = snapshot.before.substring(0, snapshot.before.length() - snapshot.wordBefore.length()) + insertion;
@@ -38,7 +40,9 @@ public final class CompletionEdit
       if (original.equals(before.wordBefore) && insertion.equals(original + " "))
         return ic.commitText(" ", 1);
       if (!ic.setSelection(start, start + original.length())) return false;
-      return ic.commitText(insertion, 1);
+      if (ic.commitText(insertion, 1)) return true;
+      ic.setSelection(before.selection, before.selection);
+      return false;
     }
     finally { ic.endBatchEdit(); }
   }

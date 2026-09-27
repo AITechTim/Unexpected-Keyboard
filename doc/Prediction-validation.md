@@ -1,5 +1,98 @@
 # Prediction validation
 
+## Ranking, stable slots, and spacing — 2026-09-27
+
+Implementation follows `6f9b172` on `feat/offline-word-predictions`. The installed
+397 MB Qwen3 model and pinned llama.cpp revision are unchanged; no new model
+installation is required. A larger model was not needed for the measured gains.
+
+### Changes and checks
+
+- Three word slots retain their bounds and surviving candidates retain their
+  positions while a word is edited. Empty slots are disabled. Emoji and language
+  controls reserve their widths. Pointer-down captures the candidate and freezes
+  updates until release/cancel; a stale editor snapshot cannot be accepted.
+- Phrase-row migration disables the row once, removing its height and model jobs.
+  Later explicit opt-in persists. Learned next words remain available.
+- A shared lexical pool includes literal and alias prefixes, exact words, actual
+  Unicode edit distance, transpositions, nearby-key double substitutions and
+  dictionary-validated inflections. Short forms receive reserved space. The pool
+  is capped at 48; native scoring shares token prefixes with six active branches.
+  Frequency and edit penalties are applied after contextual likelihood. The
+  final prior is `frequency * .18 - edits * 6 - completion_length * .035`.
+- Spaces owned by a successful completion move after immediately typed punctuation,
+  including repeated punctuation, and are removed for Enter. Existing/manual
+  spaces, pasted punctuation and quotes are preserved. Failed commits restore the
+  cursor and do not enable completion undo.
+- **87 Java tests pass** with Robolectric API 35 integration, including stable
+  geometry, retained slots, press capture, phrase migration, typo/inflection pools,
+  punctuation, long contexts, failed commits, cursor movement and existing privacy,
+  language, learning, repeated-tap, undo and cancellation coverage.
+- **9 real-model scoring checks** and **22 native boundary checks pass**. Scoring
+  checks include cache reuse, candidate order, German agreement, shared-prefix
+  competition, deadline/cancellation and input bounds.
+- Android debug build succeeds. Lint remains at **309 errors / 169 warnings**:
+  263 missing translations, 31 API issues and 15 class-lookup errors. These match
+  the previous baseline. The APK retains `juloo.keyboard2.debug` and the existing
+  debug signing key. The final APK passes `zipalign -c -P 16 4`; its SHA-256 is
+  `194f5a383962d5e1fe86044573b810a015a8e346ba64f8ae0e2effc86b301e87`.
+
+### Synthetic replay
+
+`QualityReplay.java` uses the production Java pool/ranker, actual English/German
+cdict files, active-layout neighbor geometry and the native runtime. The previous
+pipeline baseline includes its strict model-word validation, case-insensitive
+merging, dictionary queries and capitalization. No learned history is supplied.
+Full visible results are in `prediction-runtime/benchmark/quality-results.tsv`.
+
+| Expected word in top three | Previous pipeline | New pipeline | New rank one |
+| --- | ---: | ---: | ---: |
+| English | 19 / 29 | 28 / 29 | 24 / 29 |
+| German | 21 / 27 | 25 / 27 | 24 / 27 |
+| Total | 40 / 56 | 53 / 56 | 48 / 56 |
+
+The reported `pred → predictions`, `How do I tur → turn`, `hiben → given`,
+and `I was hiven → given` cases all rank first in the warm replay.
+
+| Replay split | Previous warm p95 | New warm p95 | New cold inference p95 | Lexical lookup p95 | Timed-out warm requests |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Tuning, 16 cases | 563 ms | 568 ms | 512 ms | 21.5 ms | 2 |
+| Diagnostic, 20 cases | 578 ms | 547 ms | 505 ms | 7.8 ms | 1 |
+| Regression, 20 cases | 556 ms | 550 ms | 504 ms | 3.5 ms | 1 |
+| Final independent holdout, 20 cases | 565 ms | 562 ms | 504 ms | 8.3 ms | 2 |
+
+Warm timings include the 50 ms debounce and new lexical lookup, but exclude model
+loading, editor IPC and rendering. Cold timings exclude debounce and lexical work.
+No split exceeds the 10% p95 regression limit. A deadline miss falls back to
+lexical ranking; cold loading and rapid cancellation can therefore still reduce
+grammar quality. These are shared-devbox timings, not Pixel 8 measurements.
+
+The later corpora were initially separate, then used to diagnose missing umlaut
+forms and shared-prefix starvation. The 56-case figures above are **regression results**, not
+an independent held-out accuracy estimate. Cases are small and synthetic, with
+some ambiguous targets; for example, the deliberately retained `Please helpe →
+helper` expectation is not a grammatical sentence. These numbers do not establish
+general grammar accuracy or a measured typing-speed improvement.
+
+After the implementation was frozen, a **new 20-case holdout** was written and
+run once without further code changes. Expected-word top-three coverage was
+**20/20 versus 17/20** for the previous pipeline; 19/20 ranked first. Both languages
+scored 10/10. Two requests used lexical fallback after the inference deadline.
+These remain small synthetic samples, not a representative language evaluation.
+
+Next-word
+free generation remains unchanged; the measured gains concern partial-word
+completion and correction. There is no universal grammar guarantee.
+
+### Device validation
+
+ADB found no connected device. Pixel 8 / Android 17 checks in Obsidian and the
+Roamgate PWA remain pending: repeated full-word taps, punctuation/Enter, rapid
+`help → helpe` edits and taps, language changes during a press, manual spaces,
+editor selection callbacks, cold-load latency, sustained latency and battery use.
+The model remains experimental and opt-in. Use the existing 397 MB model when
+installing this APK; do not redownload it for this update.
+
 ## English/German suggestions — 2026-09-26
 
 Implementation follows `4c38d0b` on `feat/offline-word-predictions`.

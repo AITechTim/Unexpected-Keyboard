@@ -80,7 +80,9 @@ public class Keyboard2 extends InputMethodService
   {
     if (_currentSpecialLayout != null)
       return _currentSpecialLayout;
-    return LayoutModifier.modify_layout(current_layout_unmodified());
+    KeyboardData layout = LayoutModifier.modify_layout(current_layout_unmodified());
+    _config.prediction_neighbors = juloo.keyboard2.prediction.KeyNeighbors.from(layout);
+    return layout;
   }
 
   void setTextLayout(int l)

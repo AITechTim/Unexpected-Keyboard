@@ -16,7 +16,7 @@
   <PreferenceCategory android:title="@string/pref_category_suggestions">
     <CheckBoxPreference android:key="suggestions" android:title="@string/pref_suggestions_title" android:summary="@string/pref_suggestions_summary" android:defaultValue="true"/>
     <CheckBoxPreference android:key="llm_predictions" android:title="@string/prediction_title" android:summary="@string/prediction_summary" android:defaultValue="false"/>
-    <CheckBoxPreference android:key="phrase_predictions" android:title="@string/prediction_phrases" android:summary="@string/prediction_phrases_summary" android:defaultValue="true"/>
+    <CheckBoxPreference android:key="phrase_predictions" android:title="@string/prediction_phrases" android:summary="@string/prediction_phrases_summary" android:defaultValue="false"/>
     <CheckBoxPreference android:key="learn_writing" android:title="@string/prediction_learn" android:summary="@string/prediction_learn_summary" android:defaultValue="false"/>
     <CheckBoxPreference android:key="learning_paused" android:title="@string/prediction_pause" android:summary="@string/prediction_pause_summary" android:defaultValue="false" android:dependency="learn_writing"/>
     <Preference android:key="prediction_model" android:title="@string/prediction_model_title" android:summary="@string/prediction_model_summary"/>

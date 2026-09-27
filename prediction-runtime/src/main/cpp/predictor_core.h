@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cmath>
 #include <map>
+#include <limits>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -123,6 +124,122 @@ struct Predictor {
     }
     struct Beam { int seq; int row; std::string text; double score; };
     struct Extension { int parent; llama_token token; std::string text; double score; };
+
+    // Score complete candidate words with teacher forcing. No typed-prefix constraint:
+    // a correction is allowed to replace mistaken letters. All words share one root.
+    std::vector<double> score(const std::string & context, const std::vector<std::string> & words,
+                              int budget_ms = 500, const std::string & language = "") {
+        const double missing = std::numeric_limits<double>::quiet_NaN();
+        std::vector<double> result(words.size(), missing);
+        if (!ctx || words.empty() || words.size() > 48) return result;
+        running = cancellation.load();
+        deadline = Clock::now() + std::chrono::milliseconds(budget_ms);
+        std::string cue = language.empty() ? "" : language == "de" ? "Sprache: Deutsch.\n\n" : "Language: English.\n\n";
+        auto tokenize = [&](const std::string & s) {
+            std::vector<llama_token> tokens(s.size() + 8);
+            int n = llama_tokenize(vocab, s.data(), s.size(), tokens.data(), tokens.size(), true, false);
+            if (n < 0) return std::vector<llama_token>{};
+            tokens.resize(n);
+            return tokens;
+        };
+        std::string prompt = cue + context;
+        auto root = tokenize(prompt);
+        std::vector<std::vector<llama_token>> sequences;
+        for (const auto & word : words) {
+            sequences.push_back(tokenize(prompt + word + " "));
+            size_t common = 0;
+            while (common < root.size() && common < sequences.back().size()
+                && root[common] == sequences.back()[common]) ++common;
+            root.resize(common);
+        }
+        if (root.empty()) {
+            auto bos = llama_vocab_bos(vocab);
+            if (bos < 0) return result;
+            root.push_back(bos);
+            for (auto & s : sequences) if (s.empty() || s[0] != bos) s.insert(s.begin(), bos);
+        }
+        if (root.size() > 256) {
+            size_t keep = std::min<size_t>(tokenize(cue).size(), 32);
+            size_t remove = root.size() - 256;
+            root.erase(root.begin() + keep, root.begin() + keep + remove);
+            for (auto & s : sequences) s.erase(s.begin() + keep, s.begin() + keep + remove);
+        }
+        std::vector<std::vector<llama_token>> tails;
+        for (auto & s : sequences) {
+            if (s.size() <= root.size() || s.size() - root.size() > 16) tails.push_back({});
+            else tails.emplace_back(s.begin() + root.size(), s.end());
+        }
+        auto mem = llama_get_memory(ctx);
+        for (int seq = 1; seq < 13; ++seq) llama_memory_seq_rm(mem, seq, -1, -1);
+        size_t common = 0;
+        while (common < cached.size() && common < root.size() && cached[common] == root[common]) ++common;
+        common = std::min(common, root.size() - 1);
+        llama_memory_seq_rm(mem, 0, common, -1);
+        llama_batch batch = llama_batch_init(256, 0, 1);
+        batch.n_tokens = 0;
+        for (size_t i = common; i < root.size(); i++) add(batch, root[i], i, 0, i + 1 == root.size());
+        if (!decode(batch)) { llama_batch_free(batch); return result; }
+        cached = root;
+        // Share candidate token prefixes. Selecting words by only their first token
+        // would let six compounds sharing one token crowd out a likely short word.
+        struct Node { std::map<llama_token, size_t> children; std::vector<size_t> ends; };
+        std::vector<Node> trie(1);
+        for (size_t i = 0; i < tails.size(); i++) if (!tails[i].empty()) {
+            size_t node = 0;
+            for (auto token : tails[i]) {
+                auto found = trie[node].children.find(token);
+                if (found == trie[node].children.end()) {
+                    size_t next = trie.size(); trie[node].children[token] = next;
+                    trie.emplace_back(); node = next;
+                } else node = found->second;
+            }
+            trie[node].ends.push_back(i);
+        }
+        struct Path { size_t node; int seq, row; double score; };
+        struct Step { size_t node; int parent; llama_token token; double score; };
+        std::vector<Path> beams = {{0, 0, batch.n_tokens - 1, 0}};
+        std::fill(result.begin(), result.end(), -std::numeric_limits<double>::infinity());
+        int vocab_size = llama_vocab_n_tokens(vocab);
+        bool complete = true;
+        for (size_t depth = 0; depth < 16 && !beams.empty() && !abort(this); depth++) {
+            std::vector<Step> next;
+            for (const auto & beam : beams) {
+                const float * logits = llama_get_logits_ith(ctx, beam.row);
+                float max = *std::max_element(logits, logits + vocab_size);
+                double sum = 0;
+                for (int t = 0; t < vocab_size; t++) sum += std::exp(logits[t] - max);
+                double norm = max + std::log(sum);
+                for (auto child : trie[beam.node].children) {
+                    double score = beam.score + logits[child.first] - norm;
+                    for (size_t i : trie[child.second].ends) result[i] = score;
+                    if (!trie[child.second].children.empty()) next.push_back({child.second, beam.seq, child.first, score});
+                }
+            }
+            if (next.empty()) break;
+            std::stable_sort(next.begin(), next.end(), [](const Step & a, const Step & b) { return a.score > b.score; });
+            if (next.size() > 6) next.resize(6);
+            int bank = depth % 2 == 0 ? 1 : 7;
+            for (int seq = bank; seq < bank + 6; seq++) llama_memory_seq_rm(mem, seq, -1, -1);
+            batch.n_tokens = 0;
+            std::vector<Path> active;
+            for (size_t j = 0; j < next.size(); j++) {
+                int seq = bank + j;
+                llama_memory_seq_cp(mem, next[j].parent, seq, -1, -1);
+                add(batch, next[j].token, root.size() + depth, seq, true);
+                active.push_back({next[j].node, seq, static_cast<int>(j), next[j].score});
+            }
+            complete = decode(batch);
+            if (!complete) break;
+            for (const auto & beam : beams) if (beam.seq != 0) llama_memory_seq_rm(mem, beam.seq, -1, -1);
+            beams.swap(active);
+        }
+        if (!complete) std::fill(result.begin(), result.end(), missing);
+        llama_batch_free(batch);
+        for (int seq = 1; seq < 13; seq++) llama_memory_seq_rm(mem, seq, -1, -1);
+        // Partial batches cannot fairly rank completed short words against missing long ones.
+        if (cancellation.load() != running || abort(this)) std::fill(result.begin(), result.end(), missing);
+        return result;
+    }
 
     std::vector<std::string> predict(std::string context, const std::string & prefix,
                                      int budget_ms = 250, bool phrase_mode = false, const std::string & language = "") {

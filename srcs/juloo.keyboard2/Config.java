@@ -47,6 +47,7 @@ public final class Config
   public boolean suggestions_enabled;
   public boolean llm_predictions_enabled;
   public String prediction_language = "en";
+  public java.util.Map<Character, String> prediction_neighbors = java.util.Collections.emptyMap();
   public boolean learn_writing, learning_paused, phrase_predictions_enabled;
   // Let the system handle vibration when false.
   public boolean vibrate_custom;
@@ -155,7 +156,9 @@ public final class Config
     llm_predictions_enabled = _prefs.getBoolean("llm_predictions", false);
     learn_writing = _prefs.getBoolean("learn_writing", false);
     learning_paused = _prefs.getBoolean("learning_paused", false);
-    phrase_predictions_enabled = _prefs.getBoolean("phrase_predictions", true);
+    if (!_prefs.getBoolean("phrase_row_v2", false))
+      _prefs.edit().putBoolean("phrase_row_v2", true).putBoolean("phrase_predictions", false).apply();
+    phrase_predictions_enabled = _prefs.getBoolean("phrase_predictions", false);
     // The baseline for the swipe distance correspond to approximately the
     // width of a key in portrait mode, as most layouts have 10 columns.
     // Multipled by the DPI ratio because most swipes are made in the diagonals.

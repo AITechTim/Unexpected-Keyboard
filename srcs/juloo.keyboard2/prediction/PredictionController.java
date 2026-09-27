@@ -46,6 +46,7 @@ public final class PredictionController implements AutoCloseable
   {
     stopLearning();
     active = true;
+    suggestions.invalidate();
     suspended = false;
     fieldAllowed = PredictionEligibility.allows(info.inputType, info.imeOptions);
     selectionStart = info.initialSelStart;
@@ -101,8 +102,7 @@ public final class PredictionController implements AutoCloseable
     changedAt = android.os.SystemClock.uptimeMillis();
     handler.removeCallbacks(request); handler.removeCallbacks(phraseRequest);
     worker.invalidate(false);
-    suggestions.clear_predictions();
-    suggestions.bind(active ? read() : null);
+    suggestions.refresh(active ? read() : null);
     if (localEnabled())
     {
       PredictionSnapshot snapshot = read();
@@ -170,7 +170,10 @@ public final class PredictionController implements AutoCloseable
     if (!enabled()) return;
     PredictionSnapshot snapshot = read();
     if (snapshot == null || !snapshot.eligible()) return;
-    worker.submit(snapshot);
+    PredictionSnapshot bound = suggestions.snapshot();
+    if (bound == null || !bound.language.equals(snapshot.language)
+        || !bound.matches(snapshot.before, snapshot.after, snapshot.selection)) suggestions.refresh(snapshot);
+    worker.submit(snapshot.withCandidates(suggestions.lexicalCandidates()));
   }
 
   private void capturePhrase()

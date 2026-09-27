@@ -32,6 +32,14 @@ public final class LlamaPredictionEngine implements PredictionEngine
       if (cancellation.get() != generation) return new String[0];
       boolean bilingual = model.equals(ModelStore.file(context));
       boolean phrase = snapshot.kind == PredictionSnapshot.Kind.PHRASE;
+      if (!phrase && snapshot.lexical.length > 0)
+      {
+        String[] words = new String[snapshot.lexical.length];
+        for (int i = 0; i < words.length; i++) words[i] = snapshot.lexical[i].text;
+        double[] scores = nativePredictor.score(snapshot.context, words, bilingual ? 500 : 250,
+            bilingual ? snapshot.language : "");
+        return CandidateRanking.rank(snapshot.lexical, scores);
+      }
       return nativePredictor.predict(snapshot.context, snapshot.prefix, phrase,
           bilingual ? (phrase ? 1000 : 500) : (phrase ? 500 : 250),
           bilingual ? snapshot.language : "");

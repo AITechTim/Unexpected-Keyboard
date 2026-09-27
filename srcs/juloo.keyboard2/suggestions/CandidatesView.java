@@ -27,12 +27,12 @@ public class CandidatesView extends LinearLayout
       than [NUM_CANDIDATES] suggestions.
       - Entries at indexes [0] to [2] are word suggestions.
       - Entry at index [3] is the emoji suggestion. */
+  Candidate[] pending;
   Candidate[] _items = new Candidate[NUM_CANDIDATES];
   boolean[] _touching = new boolean[NUM_CANDIDATES];
   Candidate[] _pressed_items = new Candidate[NUM_CANDIDATES];
 
-  /** Text views showing the candidates in [_items]. Text views visibility is
-      set to [GONE] when there are less than [NUM_CANDIDATES] suggestions. */
+  /** Empty slots keep their geometry and are disabled for touch and accessibility. */
   TextView[] _item_views = new TextView[NUM_CANDIDATES];
 
   /** Message when no dictionary is installed. Visible when no candidates are
@@ -63,39 +63,44 @@ public class CandidatesView extends LinearLayout
 
   public void set_candidates(Suggestions s)
   {
-    int s_count = s.count;
-    for (int i = 0; i < Suggestions.MAX_COUNT; i++)
-      _items[i] = (i < s_count) ? s.candidates[i] : null;
-    _items[3] = s.emoji_suggestion == null ? null : new Candidate(s.emoji_suggestion, Candidate.Source.EMOJI, s.snapshot());
-    // Hide the status message when showing candidates.
-    if (s_count != 0 && _status_no_dict != null)
-      _status_no_dict.setVisibility(View.GONE);
-    for (int i = 0; i < _item_views.length; i++)
-    {
-      TextView v = _item_views[i];
-      if (_items[i] != null)
-      {
-        v.setText(_items[i].text);
-        v.setVisibility(View.VISIBLE);
-      }
-      else
-      {
-        v.setVisibility(View.GONE);
-      }
-    }
-    int dict_vis =
-      should_show_dictionary_switch ? View.VISIBLE : View.GONE;
+    Candidate[] next = new Candidate[NUM_CANDIDATES];
+    for (int i = 0; i < Suggestions.MAX_COUNT; i++) next[i] = s.candidates[i];
+    next[3] = s.emoji_suggestion == null ? null : new Candidate(s.emoji_suggestion, Candidate.Source.EMOJI, s.snapshot());
+    for (boolean touching : _touching) if (touching) { pending = next; return; }
+    render(next);
+    int dict_vis = View.VISIBLE;
     _dictionary_switch_button.setVisibility(View.GONE);
     _lang_name_view.setVisibility(dict_vis);
   }
 
+  private void render(Candidate[] next)
+  {
+    _items = next;
+    boolean any = false;
+    for (int i = 0; i < NUM_CANDIDATES; i++)
+    {
+      Candidate item = next[i];
+      any |= item != null;
+      TextView view = _item_views[i];
+      view.setText(item == null ? "" : item.text);
+      view.setEnabled(item != null);
+      view.setImportantForAccessibility(item == null ? View.IMPORTANT_FOR_ACCESSIBILITY_NO : View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
+      view.setVisibility(View.VISIBLE);
+    }
+    if (any && _status_no_dict != null) _status_no_dict.setVisibility(View.GONE);
+  }
+
+  private void flushPending()
+  {
+    for (boolean touching : _touching) if (touching) return;
+    if (pending != null) { Candidate[] next = pending; pending = null; render(next); }
+  }
+
   public void clear_candidates()
   {
-    for (int i = 0; i < _item_views.length; i++)
-    {
-      _items[i] = _pressed_items[i] = null;
-      _item_views[i].setVisibility(View.GONE);
-    }
+    pending = null;
+    for (int i = 0; i < NUM_CANDIDATES; i++) _pressed_items[i] = null;
+    render(new Candidate[NUM_CANDIDATES]);
   }
 
   public void refresh_config(Config config)
@@ -150,7 +155,7 @@ public class CandidatesView extends LinearLayout
     {
       _status_no_dict = View.inflate(getContext(),
           R.layout.candidates_status_no_dict, null);
-      addView(_status_no_dict);
+      ((android.widget.FrameLayout)findViewById(R.id.candidates_word_area)).addView(_status_no_dict);
     }
     Locale current_locale = Locale.forLanguageTag(config.prediction_language);
     TextView tv = _status_no_dict.findViewById(android.R.id.text1);
@@ -168,7 +173,9 @@ public class CandidatesView extends LinearLayout
       if (event.getActionMasked() == android.view.MotionEvent.ACTION_DOWN)
       { _touching[item_index] = true; _pressed_items[item_index] = _items[item_index]; }
       else if (event.getActionMasked() == android.view.MotionEvent.ACTION_CANCEL)
-      { _touching[item_index] = false; _pressed_items[item_index] = null; }
+      { _touching[item_index] = false; _pressed_items[item_index] = null; flushPending(); }
+      else if (event.getActionMasked() == android.view.MotionEvent.ACTION_UP)
+        post(() -> { _touching[item_index] = false; _pressed_items[item_index] = null; flushPending(); });
       return false;
     });
     v.setOnClickListener(new View.OnClickListener()
@@ -183,7 +190,8 @@ public class CandidatesView extends LinearLayout
               Config.globalConfig().handler.candidate_entered(it);
           }
         });
-    v.setVisibility(View.GONE);
+    v.setVisibility(View.VISIBLE);
+    v.setEnabled(false);
     _item_views[item_index] = v;
   }
 
