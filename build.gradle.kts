@@ -24,8 +24,12 @@ android {
     applicationId = "juloo.keyboard2"
     minSdk = 21
     targetSdk { version = release(36) }
-    versionCode = 57
-    versionName = "2.1.1"
+    // Use a regular build property: IDE-injected ABI builds mark APKs testOnly.
+    if (providers.gradleProperty("diagnosticArm64").orNull == "true") {
+      ndk { abiFilters += "arm64-v8a" }
+    }
+    versionCode = 58
+    versionName = "2.1.2"
   }
 
   sourceSets {

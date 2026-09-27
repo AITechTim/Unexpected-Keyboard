@@ -70,7 +70,7 @@ public final class KeyboardDiagnostics
   {
     try {
       JSONObject result = new JSONObject();
-      result.put("schema", 1); result.put("keyboard_version", "2.1.1");
+      result.put("schema", 1); result.put("keyboard_version", "2.1.2");
       result.put("model", android.os.Build.MODEL); result.put("android", android.os.Build.VERSION.RELEASE);
       result.put("sdk", android.os.Build.VERSION.SDK_INT); result.put("mode", mode);
       result.put("recording", recording); result.put("events", events);

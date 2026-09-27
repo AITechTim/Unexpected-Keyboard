@@ -1,6 +1,6 @@
 # Pixel 8 backspace investigation
 
-Diagnostic update 2.1.1 (versionCode 57), based on the custom 2.1.0 keyboard.
+Diagnostic update 2.1.2 (versionCode 58), based on the custom 2.1.0 keyboard.
 This is an experiment for the Android 17 Chrome renderer crash; a permanent fix
 requires device results. Open Settings → Keyboard diagnostics to select a mode:
 
@@ -31,7 +31,7 @@ Build (Java 21, Android SDK installed):
 
 ```sh
 ./gradlew testDebugUnitTest assembleDebug \
-  -Pandroid.injected.build.abi=arm64-v8a --max-workers=2 --no-daemon \
+  -PdiagnosticArm64=true --max-workers=2 --no-daemon \
   --no-watch-fs --no-configuration-cache \
   '-Dorg.gradle.jvmargs=-Xmx2g -XX:ActiveProcessorCount=4'
 ```
@@ -39,3 +39,11 @@ Build (Java 21, Android SDK installed):
 Verify that `TEST-juloo.keyboard2.KeyboardDiagnosticTest.xml` includes all five
 tests, and verify APK version/package/signature before distribution. Desktop
 or Robolectric results cannot establish that Android's native crash is fixed.
+
+2.1.1 was accidentally built with the IDE-only ABI property, which injected
+`android:testOnly=true`; Android's normal installer rejects it. Version 2.1.2
+uses `-PdiagnosticArm64=true` instead. Before publishing, run
+`scripts/verify-installable-apk.py` with the APK, `--build-tools` SDK directory,
+expected `--version-name`, `--version-code` and `--certificate` SHA-256. This
+checks the actual packaged manifest, signature, ABI and ZIP alignment. Never
+publish an APK with the testOnly flag or bypass it with an adb-only install.

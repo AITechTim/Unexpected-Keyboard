@@ -21,7 +21,7 @@ public final class DiagnosticsActivity extends Activity
     LinearLayout layout = new LinearLayout(this); layout.setOrientation(LinearLayout.VERTICAL);
     layout.setPadding(24, 24, 24, 24);
     ScrollView scroll = new ScrollView(this); scroll.addView(layout); setContentView(scroll);
-    TextView title = new TextView(this); title.setText("Keyboard diagnostics · 2.1.1"); title.setTextSize(24); layout.addView(title);
+    TextView title = new TextView(this); title.setText("Keyboard diagnostics · 2.1.2"); title.setTextSize(24); layout.addView(title);
     TextView help = new TextView(this);
     help.setText("Test the same backspace in each mode. Close and reopen the keyboard after changing mode. No text or query contents are recorded. Diagnostics stay on this phone until you export them.\n\nNo native predictions unloads the model. No optional reads also disables suggestions and automatic capitalisation while testing. Deferred reads moves refreshes after deletion.\n");
     layout.addView(help);
