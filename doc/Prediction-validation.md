@@ -1,5 +1,23 @@
 # Prediction validation
 
+## APK update-version correction — 2026-09-27
+
+The prediction APK from `2df22f7` incorrectly retained version **2.1.0 (56)**,
+below the already-distributed diagnostic **2.1.2 (58)**. This prevented an
+in-place Android update. The rebuilt prediction APK is **2.1.4 (60)**, also
+above diagnostic branch version 2.1.3 (59).
+
+`assembleDebug` succeeded. Inspection of the actual APK verified package
+`juloo.keyboard2.debug`, version name/code, a standalone non-test-only manifest,
+16 KB ZIP alignment, and the same signing certificate as the 2.1.2 APK
+(`4381830cd7cd3dafdfbc486d13c71add611fc51bf3e7cf3ba1b5b462c9cf36d8`).
+Only version metadata changed; the earlier prediction test results remain below.
+Device installation was not exercised.
+
+Updated artifact: `build/outputs/apk/debug/Unexpected-Keyboard-2.1.4-debug.apk`.
+SHA-256: `4c9906b3f65fcd8782d6d59f92142aff7b8c5266d1de50e542e588fe60197b27`.
+This supersedes the earlier APK and its checksum below.
+
 ## Ranking, stable slots, and spacing — 2026-09-27
 
 Implementation follows `6f9b172` on `feat/offline-word-predictions`. The installed
