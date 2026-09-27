@@ -17,11 +17,11 @@ public final class DiagnosticsActivity extends Activity
   {
     super.onCreate(state);
     SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
-    KeyboardDiagnostics.configure(this, prefs);
+    KeyboardDiagnostics.configureFromSettings(this, prefs);
     LinearLayout layout = new LinearLayout(this); layout.setOrientation(LinearLayout.VERTICAL);
     layout.setPadding(24, 24, 24, 24);
     ScrollView scroll = new ScrollView(this); scroll.addView(layout); setContentView(scroll);
-    TextView title = new TextView(this); title.setText("Keyboard diagnostics · 2.1.2"); title.setTextSize(24); layout.addView(title);
+    TextView title = new TextView(this); title.setText("Keyboard diagnostics · 2.1.3"); title.setTextSize(24); layout.addView(title);
     TextView help = new TextView(this);
     help.setText("Test the same backspace in each mode. Close and reopen the keyboard after changing mode. No text or query contents are recorded. Diagnostics stay on this phone until you export them.\n\nNo native predictions unloads the model. No optional reads also disables suggestions and automatic capitalisation while testing. Deferred reads moves refreshes after deletion.\n");
     layout.addView(help);
@@ -34,14 +34,14 @@ public final class DiagnosticsActivity extends Activity
       public void onNothingSelected(AdapterView<?> parent) {}
       public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
         prefs.edit().putString("keyboard_diagnostic_mode", KeyboardDiagnostics.MODES[pos]).apply();
-        KeyboardDiagnostics.configure(DiagnosticsActivity.this, prefs);
+        KeyboardDiagnostics.configureFromSettings(DiagnosticsActivity.this, prefs);
       }
     });
     Switch record = new Switch(this); record.setText("Record diagnostic metadata");
     record.setChecked(prefs.getBoolean("keyboard_diagnostic_record", false)); layout.addView(record);
     record.setOnCheckedChangeListener((button, enabled) -> {
       prefs.edit().putBoolean("keyboard_diagnostic_record", enabled).apply();
-      KeyboardDiagnostics.configure(this, prefs);
+      KeyboardDiagnostics.configureFromSettings(this, prefs);
     });
     Button export = new Button(this); export.setText("Export diagnostic JSON"); layout.addView(export);
     export.setOnClickListener(v -> startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT)

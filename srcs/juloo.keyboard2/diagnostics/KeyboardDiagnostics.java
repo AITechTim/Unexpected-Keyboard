@@ -47,6 +47,18 @@ public final class KeyboardDiagnostics
     event("configuration", 0, 0);
   }
 
+  /** Settings uses credential storage; the live IME observes device storage. */
+  public static void configureFromSettings(Context context, SharedPreferences settings)
+  {
+    SharedPreferences runtime = juloo.keyboard2.DirectBootAwarePreferences.get_shared_preferences(context);
+    // Copy only diagnostic keys; do not overwrite runtime language selection.
+    runtime.edit()
+      .putString("keyboard_diagnostic_mode", settings.getString("keyboard_diagnostic_mode", "baseline"))
+      .putBoolean("keyboard_diagnostic_record", settings.getBoolean("keyboard_diagnostic_record", false))
+      .apply();
+    configure(context, runtime);
+  }
+
   public static boolean noReads() { return mode.equals("no_reads"); }
   public static boolean noNative() { return noReads() || mode.equals("no_native"); }
   public static boolean deferred() { return mode.equals("deferred"); }
@@ -70,7 +82,7 @@ public final class KeyboardDiagnostics
   {
     try {
       JSONObject result = new JSONObject();
-      result.put("schema", 1); result.put("keyboard_version", "2.1.2");
+      result.put("schema", 1); result.put("keyboard_version", "2.1.3");
       result.put("model", android.os.Build.MODEL); result.put("android", android.os.Build.VERSION.RELEASE);
       result.put("sdk", android.os.Build.VERSION.SDK_INT); result.put("mode", mode);
       result.put("recording", recording); result.put("events", events);

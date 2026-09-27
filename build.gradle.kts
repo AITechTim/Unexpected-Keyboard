@@ -28,8 +28,8 @@ android {
     if (providers.gradleProperty("diagnosticArm64").orNull == "true") {
       ndk { abiFilters += "arm64-v8a" }
     }
-    versionCode = 58
-    versionName = "2.1.2"
+    versionCode = 59
+    versionName = "2.1.3"
   }
 
   sourceSets {

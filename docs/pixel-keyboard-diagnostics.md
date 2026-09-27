@@ -1,6 +1,6 @@
 # Pixel 8 backspace investigation
 
-Diagnostic update 2.1.2 (versionCode 58), based on the custom 2.1.0 keyboard.
+Diagnostic update 2.1.3 (versionCode 59), based on the custom 2.1.0 keyboard.
 This is an experiment for the Android 17 Chrome renderer crash; a permanent fix
 requires device results. Open Settings → Keyboard diagnostics to select a mode:
 
@@ -26,7 +26,8 @@ The signed ARM64 debug APK updates `juloo.keyboard2.debug` without uninstalling.
 Preserve the existing debug signing identity when building; do not commit keys
 or APKs. Record APK hash and certificate fingerprint alongside distribution.
 
-Validated with 79 Robolectric/unit tests, including five diagnostic regressions.
+The diagnostic regression suite checks field eligibility, settings propagation,
+read ordering, lifecycle cleanup and bounded metadata.
 Build (Java 21, Android SDK installed):
 
 ```sh

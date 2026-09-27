@@ -121,6 +121,44 @@ public class KeyboardDiagnosticTest
       assertEquals(Arrays.asList("key:0","key:1","getSurroundingText"),calls);
     } finally {keys.finished();controller.close();}
   }
+  @Test public void fieldsThatDisableSuggestionsNeverReadPredictionSnapshots()
+  {
+    mode("baseline",false);
+    Suggestions suggestions=new Suggestions(s->{},config);
+    PredictionController controller=new PredictionController(context,new Handler(Looper.getMainLooper()),()->connection,config,suggestions);
+    // Exact web field flags from the Pixel 8 crash export.
+    EditorInfo info=new EditorInfo();info.inputType=2621601;info.imeOptions=301989893;
+    info.initialSelStart=info.initialSelEnd=16;
+    try {
+      calls.clear();controller.start(info);controller.changed();controller.selection(15,15);
+      assertNull(controller.snapshot());
+      Shadows.shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100));
+      assertTrue("No prediction reads in a no-suggestions field: "+calls,calls.isEmpty());
+    } finally {controller.close();}
+  }
+
+  @Test public void diagnosticSettingsReachTheLiveImeAndSurviveReconfiguration()
+  {
+    SharedPreferences settings=android.preference.PreferenceManager.getDefaultSharedPreferences(context);
+    SharedPreferences runtime=DirectBootAwarePreferences.get_shared_preferences(context);
+    runtime.edit().putString("prediction_language","de").commit();
+    settings.edit().putString("prediction_language","en")
+      .putString("keyboard_diagnostic_mode","no_reads")
+      .putBoolean("keyboard_diagnostic_record",true).commit();
+    KeyboardDiagnostics.configureFromSettings(context,settings);
+    assertEquals("no_reads",runtime.getString("keyboard_diagnostic_mode",null));
+    assertEquals("de",runtime.getString("prediction_language",null));
+    assertTrue(runtime.getBoolean("keyboard_diagnostic_record",false));
+    // The service rereads this store after language/configuration changes.
+    KeyboardDiagnostics.configure(context,runtime);
+    assertTrue(KeyboardDiagnostics.noReads());
+    assertNull(KeyboardDiagnostics.wrap(connection).getSurroundingText(1024,32,0));
+    settings.edit().putString("keyboard_diagnostic_mode","baseline").commit();
+    KeyboardDiagnostics.configureFromSettings(context,settings);
+    KeyboardDiagnostics.configure(context,runtime);
+    assertFalse(KeyboardDiagnostics.noReads());
+  }
+
   @Test public void typedWordCancelsStaleDeferredReadsAcrossInputFinish()
   {
     mode("deferred",false);

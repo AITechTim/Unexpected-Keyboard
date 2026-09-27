@@ -105,7 +105,13 @@ public final class PredictionController implements AutoCloseable
     handler.removeCallbacks(request); handler.removeCallbacks(phraseRequest); handler.removeCallbacks(deferredRefresh);
     worker.invalidate(false);
     suggestions.clear_predictions();
-    if (KeyboardDiagnostics.noReads()) { suggestions.bind(null); return; }
+    // The phrase-completion snapshot must obey the same field policy as inference.
+    // In particular, never query a web filter that sets NO_SUGGESTIONS.
+    if (!active || !fieldAllowed || KeyboardDiagnostics.noReads()) {
+      suggestions.bind(null);
+      if (!config.llm_predictions_enabled) worker.unload();
+      return;
+    }
     if (KeyboardDiagnostics.deferred()) {
       suggestions.bind(null);
       if (active) handler.postDelayed(deferredRefresh, 50);
@@ -165,7 +171,7 @@ public final class PredictionController implements AutoCloseable
 
   private PredictionSnapshot read()
   {
-    if (closed || !active || KeyboardDiagnostics.noReads()) return null;
+    if (closed || !active || !fieldAllowed || KeyboardDiagnostics.noReads()) return null;
     InputConnection ic = host.connection();
     if (ic == null) return null;
     if (Build.VERSION.SDK_INT >= 31)

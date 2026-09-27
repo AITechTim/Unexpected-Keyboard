@@ -2,8 +2,8 @@
 
 Device evidence from diagnostic keyboard 2.1.2: Pixel 8, Android 17 / SDK 37.
 The user confirms all three synthetic test fields work; the original work-items
-filter still crashes. Both supplied exports are labeled baseline. No result from
-the alternative keyboard modes is available yet.
+filter still crashes. Both supplied exports are labeled baseline. The user subsequently reports the original filter also crashes with No optional
+text reads selected, and recalls the regression beginning with phrase prediction.
 
 The page trace includes repeated completed backward deletions in plain and
 static fields, then seven completed deletions in the dynamic field, each followed
@@ -33,9 +33,39 @@ fetch/render results. The synthetic dynamic input implements only a small
 validation regex and a constant suggestion list. Existing Chromium emulation
 checks have not reproduced the physical renderer crash.
 
-Next discriminating check: choose No optional text reads in the keyboard, close
+Initial discriminating check: choose No optional text reads in the keyboard, close
 and reopen it, and repeat the original Open-view edit. A continued crash would
 show that the suppressed InputConnection reads are not required for reproduction;
 a successful edit would implicate their interaction without proving a specific
 Chrome/IME fault. Preserve that mode's trace and report the visible outcome.
 Do not select a permanent fix from the baseline trace alone.
+
+## Source findings and 2.1.3 correction
+
+The phrase-completion commit 4c38d0b added unconditional snapshot binding in
+PredictionController.changed(). It queries editor text before checking the
+field eligibility used by model inference and learning. The exact logged field
+flags, 2621601 (0x2800a1), set NO_SUGGESTIONS; those reads should not happen.
+A regression test using those flags fails on 2.1.2 because snapshot() returns
+text even for this excluded field. 2.1.3 guards both changed() and read() with
+the field policy, preserving dictionary completions independently of model
+language settings. All 81 unit/Robolectric tests pass. The 2.1.3 source is not
+distributed as a crash fix; the latest installed artifact remains 2.1.2.
+
+The diagnostics activity also wrote only credential-protected preferences while
+the live keyboard observes device-protected preferences. Its in-process mode
+change could be overwritten by a subsequent service configuration callback.
+2.1.3 copies only the diagnostic settings to the observed store and tests a
+service reconfiguration. Therefore the reported no-reads outcome cannot rule out
+text reads without its actual event-mode trace. The baseline export is insufficient.
+
+A page-side explicit-Apply prototype was discarded without deployment after
+finding the keyboard regression. Keep the normal filter behavior for the next
+2.1.3 baseline test. Native Chrome crash resolution still requires phone evidence.
+
+The subsequent no_reads export confirms the mode remained active through the
+crash. It contains deletion DOWN/UP and selection events, no text read calls,
+and a model unload before the attempt. This rules out the suppressed reads and
+active model inference as necessary triggers for this reproduction. The field
+eligibility and settings fixes are valid separate defects, not an established
+fix for the Chrome failure.
