@@ -8,6 +8,7 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import java.util.concurrent.Executors;
 import juloo.keyboard2.Config;
+import juloo.keyboard2.diagnostics.KeyboardDiagnostics;
 import juloo.keyboard2.suggestions.Suggestions;
 
 /** UI-thread editor coordination with a single, latest-request-only worker. */
@@ -30,6 +31,7 @@ public final class PredictionController implements AutoCloseable
   private int selectionStart = -1, selectionEnd = -1;
   private long revision, changedAt;
   private final Runnable request = this::capture;
+  private final Runnable deferredRefresh = this::refreshDeferred;
   private final Runnable unload = this::unload;
 
   public PredictionController(Context c, Handler h, Host host, Config config, Suggestions suggestions)
@@ -67,6 +69,7 @@ public final class PredictionController implements AutoCloseable
     stopLearning();
     store.invalidate();
     worker.invalidate(true);
+    if (KeyboardDiagnostics.noNative()) worker.unload();
     changed();
   }
 
@@ -79,7 +82,7 @@ public final class PredictionController implements AutoCloseable
   {
     stopLearning();
     revision++;
-    handler.removeCallbacks(request); handler.removeCallbacks(phraseRequest);
+    handler.removeCallbacks(request); handler.removeCallbacks(phraseRequest); handler.removeCallbacks(deferredRefresh);
     worker.invalidate(false); suggestions.invalidate();
   }
 
@@ -99,9 +102,21 @@ public final class PredictionController implements AutoCloseable
     if (closed) return;
     revision++;
     changedAt = android.os.SystemClock.uptimeMillis();
-    handler.removeCallbacks(request); handler.removeCallbacks(phraseRequest);
+    handler.removeCallbacks(request); handler.removeCallbacks(phraseRequest); handler.removeCallbacks(deferredRefresh);
     worker.invalidate(false);
     suggestions.clear_predictions();
+    // The phrase-completion snapshot must obey the same field policy as inference.
+    // In particular, never query a web filter that sets NO_SUGGESTIONS.
+    if (!active || !fieldAllowed || KeyboardDiagnostics.noReads()) {
+      suggestions.bind(null);
+      if (!config.llm_predictions_enabled) worker.unload();
+      return;
+    }
+    if (KeyboardDiagnostics.deferred()) {
+      suggestions.bind(null);
+      if (active) handler.postDelayed(deferredRefresh, 50);
+      return;
+    }
     suggestions.bind(active ? read() : null);
     if (localEnabled())
     {
@@ -118,9 +133,29 @@ public final class PredictionController implements AutoCloseable
     else if (!config.llm_predictions_enabled) worker.unload();
   }
 
+  private void refreshDeferred()
+  {
+    if (closed || !eligibleField()) return;
+    // Bind dictionary, learned and model candidates to the same post-edit snapshot.
+    PredictionSnapshot snapshot = read();
+    suggestions.bind(snapshot);
+    if (snapshot == null || !snapshot.eligible()) return;
+    if (localEnabled()) {
+      long epoch = store.revision();
+      store.query(snapshot, match -> handler.post(() -> {
+        if (!localEnabled() || store.revision() != epoch || !current(snapshot)) return;
+        suggestions.set_learned(snapshot, match.words);
+        if (config.phrase_predictions_enabled && match.phrase != null)
+          suggestions.set_phrase(snapshot, match.phrase, Candidate.Source.LEARNED);
+      }));
+    }
+    if (enabled()) worker.submit(snapshot);
+    else if (!config.llm_predictions_enabled) worker.unload();
+  }
+
   private boolean eligibleField()
   {
-    if (suspended || !active || !fieldAllowed || !config.suggestions_enabled || config.split_layout) return false;
+    if (KeyboardDiagnostics.noReads() || suspended || !active || !fieldAllowed || !config.suggestions_enabled || config.split_layout) return false;
     UserManager users = (UserManager)context.getSystemService(Context.USER_SERVICE);
     if (Build.VERSION.SDK_INT >= 24 && !users.isUserUnlocked()) return false;
     return config.prediction_language.equals("en") || config.prediction_language.equals("de");
@@ -130,12 +165,13 @@ public final class PredictionController implements AutoCloseable
 
   private boolean enabled()
   {
-    return eligibleField() && config.llm_predictions_enabled && ModelStore.supported()
+    return !KeyboardDiagnostics.noNative() && eligibleField() && config.llm_predictions_enabled && ModelStore.supported()
       && ModelStore.forLanguage(context, config.prediction_language).isFile();
   }
 
   private PredictionSnapshot read()
   {
+    if (closed || !active || !fieldAllowed || KeyboardDiagnostics.noReads()) return null;
     InputConnection ic = host.connection();
     if (ic == null) return null;
     if (Build.VERSION.SDK_INT >= 31)

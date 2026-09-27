@@ -23,6 +23,10 @@ public class SettingsActivity extends PreferenceActivity
     }
     catch (Exception _e) { fallbackEncrypted(); return; }
     addPreferencesFromResource(R.xml.settings);
+    findPreference("keyboard_diagnostics").setOnPreferenceClickListener(pref -> {
+      startActivity(new android.content.Intent(this, juloo.keyboard2.diagnostics.DiagnosticsActivity.class));
+      return true;
+    });
     findPreference("prediction_model").setOnPreferenceClickListener(pref -> {
       startActivity(new android.content.Intent(this, juloo.keyboard2.prediction.PredictionSettingsActivity.class));
       return true;

@@ -28,6 +28,8 @@
       </intent-filter>
     </activity>
 
+    <activity tools:ignore="MissingClass" android:name="juloo.keyboard2.diagnostics.DiagnosticsActivity" android:theme="@style/settingsTheme" android:exported="false"/>
+
     <!-- Lint cannot resolve classes in this repository's dotted Java source directory. -->
     <activity tools:ignore="MissingClass" android:name="juloo.keyboard2.prediction.PredictionSettingsActivity" android:theme="@style/settingsTheme" android:exported="false"/>
 

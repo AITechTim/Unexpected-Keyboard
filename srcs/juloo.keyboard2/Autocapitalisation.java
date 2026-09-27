@@ -26,6 +26,9 @@ public final class Autocapitalisation
     _callback = cb;
   }
 
+  public void finished()
+  { _handler.removeCallbacks(delayed_callback); _ic = null; _enabled = false; _should_update_caps_mode = false; }
+
   /**
    * The events are: started, typed, event sent, selection updated
    * [started] does initialisation work and must be called before any other
@@ -33,9 +36,10 @@ public final class Autocapitalisation
    */
   public void started(Config config, InputConnection ic)
   {
+    finished();
     _ic = ic;
     EditorConfig ec = config.editor_config;
-    if (!config.autocapitalisation || ec.caps_mode == 0)
+    if (juloo.keyboard2.diagnostics.KeyboardDiagnostics.noReads() || !config.autocapitalisation || ec.caps_mode == 0)
     {
       _enabled = false;
       return;
@@ -144,6 +148,7 @@ public final class Autocapitalisation
     _should_disable_shift = might_disable;
     // The callback must be delayed because [getCursorCapsMode] would sometimes
     // be called before the editor finished handling the previous event.
+    _handler.removeCallbacks(delayed_callback);
     _handler.postDelayed(delayed_callback, 50);
   }
 

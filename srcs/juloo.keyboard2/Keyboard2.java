@@ -143,7 +143,8 @@ public class Keyboard2 extends InputMethodService
     Receiver recvr = this.new Receiver();
     _suggestions = new Suggestions(recvr, _config);
     _keyeventhandler = new KeyEventHandler(recvr, _suggestions);
-    _predictions = new PredictionController(this, _handler, this::getCurrentInputConnection, _config, _suggestions);
+    juloo.keyboard2.diagnostics.KeyboardDiagnostics.configure(this, prefs);
+    _predictions = new PredictionController(this, _handler, this::getEditorConnection, _config, _suggestions);
     _keyeventhandler.predictions = _predictions;
     KeyValue.Stateful._handler = recvr;
     _config.handler = _keyeventhandler;
@@ -270,9 +271,14 @@ public class Keyboard2 extends InputMethodService
     return null;
   }
 
+  private InputConnection getEditorConnection()
+  { return juloo.keyboard2.diagnostics.KeyboardDiagnostics.wrap(super.getCurrentInputConnection()); }
+
   @Override
   public void onStartInputView(EditorInfo info, boolean restarting)
   {
+    juloo.keyboard2.diagnostics.KeyboardDiagnostics.event("input_start", info.inputType, info.imeOptions);
+    juloo.keyboard2.diagnostics.KeyboardDiagnostics.memory("input_memory_kb");
     _predictions.finish();
     _config.editor_config.refresh(info, getResources());
     refresh_config();
@@ -377,6 +383,7 @@ public class Keyboard2 extends InputMethodService
   public void onUpdateSelection(int oldSelStart, int oldSelEnd, int newSelStart, int newSelEnd, int candidatesStart, int candidatesEnd)
   {
     super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd);
+    juloo.keyboard2.diagnostics.KeyboardDiagnostics.event("selection", newSelStart, newSelEnd);
     _keyeventhandler.selection_updated(oldSelStart, newSelStart, newSelEnd);
     if ((oldSelStart == oldSelEnd) != (newSelStart == newSelEnd))
       _keyboard_layout_view.set_selection_state(newSelStart != newSelEnd);
@@ -412,6 +419,7 @@ public class Keyboard2 extends InputMethodService
   @Override
   public void onSharedPreferenceChanged(SharedPreferences _prefs, String _key)
   {
+    juloo.keyboard2.diagnostics.KeyboardDiagnostics.configure(this, _prefs);
     refresh_config();
     _keyboard_layout_view.setKeyboard(current_layout());
   }
@@ -573,7 +581,7 @@ public class Keyboard2 extends InputMethodService
 
     public InputConnection getCurrentInputConnection()
     {
-      return Keyboard2.this.getCurrentInputConnection();
+      return Keyboard2.this.getEditorConnection();
     }
 
     public Handler getHandler()
