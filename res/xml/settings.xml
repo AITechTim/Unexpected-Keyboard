@@ -19,6 +19,7 @@
     <CheckBoxPreference android:key="phrase_predictions" android:title="@string/prediction_phrases" android:summary="@string/prediction_phrases_summary" android:defaultValue="true"/>
     <CheckBoxPreference android:key="learn_writing" android:title="@string/prediction_learn" android:summary="@string/prediction_learn_summary" android:defaultValue="false"/>
     <CheckBoxPreference android:key="learning_paused" android:title="@string/prediction_pause" android:summary="@string/prediction_pause_summary" android:defaultValue="false" android:dependency="learn_writing"/>
+    <Preference android:key="keyboard_diagnostics" android:title="Keyboard diagnostics" android:summary="Local metadata and compatibility test modes"/>
     <Preference android:key="prediction_model" android:title="@string/prediction_model_title" android:summary="@string/prediction_model_summary"/>
     <CheckBoxPreference android:key="space_bar_auto_complete" android:title="@string/pref_space_bar_auto_complete_title" android:summary="@string/pref_space_bar_auto_complete_summary" android:defaultValue="false"/>
   </PreferenceCategory>

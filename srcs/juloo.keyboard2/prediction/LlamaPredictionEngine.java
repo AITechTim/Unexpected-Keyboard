@@ -24,10 +24,12 @@ public final class LlamaPredictionEngine implements PredictionEngine
     {
       if (nativePredictor == null)
       {
+        juloo.keyboard2.diagnostics.KeyboardDiagnostics.memory("model_load_start_kb");
         loadedPath = model.getAbsolutePath();
         nativePredictor = new NativePredictor();
         if (!nativePredictor.load(model.getAbsolutePath()))
           throw new IllegalStateException("Model load failed");
+        juloo.keyboard2.diagnostics.KeyboardDiagnostics.memory("model_load_end_kb");
       }
       if (cancellation.get() != generation) return new String[0];
       boolean bilingual = model.equals(ModelStore.file(context));
@@ -56,7 +58,7 @@ public final class LlamaPredictionEngine implements PredictionEngine
   {
     NativePredictor p = nativePredictor;
     nativePredictor = null;
-    if (p != null) p.close();
+    if (p != null) { p.close(); juloo.keyboard2.diagnostics.KeyboardDiagnostics.memory("model_unloaded_kb"); }
     failed = false;
     loadedPath = null;
   }

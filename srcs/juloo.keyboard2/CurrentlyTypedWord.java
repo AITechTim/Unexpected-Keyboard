@@ -59,8 +59,9 @@ public final class CurrentlyTypedWord
 
   public void started(Config conf, InputConnection ic)
   {
+    finished();
     _ic = ic;
-    _enabled = true;
+    _enabled = !juloo.keyboard2.diagnostics.KeyboardDiagnostics.noReads();
     EditorConfig e = conf.editor_config;
     _has_selection = e.initial_sel_start != e.initial_sel_end;
     _cursor = e.initial_sel_start;
@@ -138,6 +139,13 @@ public final class CurrentlyTypedWord
     _callback.currently_typed_word(w);
   }
 
+  public void finished()
+  {
+    _handler.removeCallbacks(delayed_refresh_run);
+    _refresh_pending = false; _enabled = false; _ic = null;
+    _w.setLength(0); _w_cursor = 0;
+  }
+
   /** Estimate the currently typed word after [chars] has been typed. */
   void type_chars(CharSequence s, int start, int end)
   {
@@ -187,6 +195,14 @@ public final class CurrentlyTypedWord
   /** Refresh the current word by immediately querying the editor. */
   void refresh_current_word()
   {
+    if (!_enabled || _ic == null) return;
+    if (juloo.keyboard2.diagnostics.KeyboardDiagnostics.deferred()) { delayed_refresh(); return; }
+    read_current_word();
+  }
+
+  void read_current_word()
+  {
+    if (!_enabled || _ic == null) return;
     Logs.debug("Refresh current word");
     _refresh_pending = false;
     _w_cursor = 0;
@@ -237,6 +253,7 @@ public final class CurrentlyTypedWord
   void delayed_refresh()
   {
     _refresh_pending = true;
+    _handler.removeCallbacks(delayed_refresh_run);
     _handler.postDelayed(delayed_refresh_run, 50);
   }
 
@@ -245,7 +262,7 @@ public final class CurrentlyTypedWord
     public void run()
     {
       if (_refresh_pending)
-        refresh_current_word();
+        read_current_word();
     }
   };
 

@@ -71,6 +71,8 @@ public final class KeyEventHandler
   {
     completionUndo = null;
     _last_action = null;
+    _typedword.finished();
+    _autocap.finished();
   }
 
   /** Selection has been updated. */
@@ -275,7 +277,10 @@ public final class KeyEventHandler
     InputConnection conn = _recv.getCurrentInputConnection();
     if (conn == null)
       return;
-    if (predictions != null && !KeyEvent.isModifierKey(eventCode)) { predictions.stopLearning(); predictions.changed(); }
+    if (predictions != null && !KeyEvent.isModifierKey(eventCode)) {
+      predictions.stopLearning();
+      if (!juloo.keyboard2.diagnostics.KeyboardDiagnostics.deferred()) predictions.changed();
+    }
     conn.sendKeyEvent(new KeyEvent(1, 1, eventAction, eventCode, 0,
           metaState, KeyCharacterMap.VIRTUAL_KEYBOARD, 0,
           KeyEvent.FLAG_SOFT_KEYBOARD | KeyEvent.FLAG_KEEP_TOUCH_MODE));
@@ -283,6 +288,7 @@ public final class KeyEventHandler
     {
       _autocap.event_sent(eventCode, metaState);
       _typedword.event_sent(eventCode, metaState);
+      if (predictions != null && juloo.keyboard2.diagnostics.KeyboardDiagnostics.deferred()) predictions.changed();
     }
   }
 
