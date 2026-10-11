@@ -23,6 +23,28 @@ git submodule update --init
 
 For Android Studio users, no more setup is needed.
 
+On the devbox, `mise.toml` pins Java and the Android command-line tools. Install
+the required SDK components into mise's persistent SDK directory, then build:
+
+```sh
+mise trust
+devbox-mem
+devbox-disk
+mise install
+mise exec -- sdkmanager 'platforms;android-36' 'build-tools;35.0.0' 'ndk;28.2.13676358' 'cmake;3.22.1' platform-tools
+devbox-mem
+devbox-disk
+CMAKE_BUILD_PARALLEL_LEVEL=2 mise exec -- ./gradlew \
+  --no-daemon --no-watch-fs --no-configuration-cache --max-workers=2 \
+  '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' testDebugUnitTest assembleDebug
+```
+
+`mise exec` sets `JAVA_HOME` and `ANDROID_HOME`; no SDK under `/tmp` or
+`local.properties` is needed. Keep the existing `debug.keystore` to allow APK
+updates without losing keyboard settings or downloaded models.
+If the SDK location changes, remove the generated `build/.cxx` and
+`prediction-runtime/.cxx` directories before rebuilding; they cache absolute SDK paths.
+
 For Nix users, the right environment can be obtained with `nix-shell ./shell.nix`.
 Instructions to install Nix are [here](https://wiki.nixos.org/wiki/Nix_Installation_Guide).
 

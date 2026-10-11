@@ -8,20 +8,29 @@ phrase acceptance inserts a separator when needed and advances over an existing
 ordinary space without replacing it. Backspace uses normal deletion rather than
 restoring the prefix or undoing the accepted phrase.
 
-**53 focused Java tests pass** across `CompletionEditTest`,
-`CompletionIntegrationTest`, `PredictionSnapshotTest`, `PredictionMergeTest`, and
-`PhraseMemoryTest`. Coverage includes insertion before long following words,
+**98 Java tests pass**, with no failures or skips, through a forced Gradle
+`:testDebugUnitTest` run. Coverage includes insertion before long following words,
 legacy editor queries, phrases, German/Unicode text, spaces, punctuation,
 failed commits, stale candidates, learning, and repeated backspace. A Robolectric
 API 35 test also exercises Android's `BaseInputConnection` and verifies that the
 following text's span survives while the cursor advances over its existing space.
 
-The normal Gradle test command could not configure because the previous Android
-SDK under `/tmp/unexpected-android-sdk` is absent. The changed production classes
-and these test suites were freshly compiled with JDK 21 against Android API 36,
-then run through JUnit/Robolectric using cached dependencies and existing compiled
-app resources. This is focused Java validation; no APK build or device test was
-performed. The device checklist in `Offline-predictions.md` reflects the new behavior.
+The previous SDK under `/tmp/unexpected-android-sdk` was absent. Java and the
+Android command-line tools are now pinned in `mise.toml`, with SDK components in
+mise's persistent installation directory. Clearing generated native command caches
+removed their references to the deleted SDK. `:assembleDebug` then succeeded,
+including rebuilding the dictionary libraries and prediction runtime with NDK
+28.2.13676358 and CMake 3.22.1. See `CONTRIBUTING.md` for setup and build commands.
+
+The APK is **2.1.5 (61)**, package `juloo.keyboard2.debug`, with a standalone,
+non-test-only manifest. Its signing certificate matches the previous 2.1.4 APK:
+`4381830cd7cd3dafdfbc486d13c71add611fc51bf3e7cf3ba1b5b462c9cf36d8`.
+Both 16 KB ZIP alignment and ELF load-segment alignment for all five packaged
+native libraries pass. Device installation was not exercised. The prediction
+model is unchanged; no model redownload is required.
+
+Artifact: `build/outputs/apk/debug/Unexpected-Keyboard-2.1.5-debug.apk`.
+SHA-256: `b47d3e92bccbdedd29683adb7af52d960af3a7894977bdb49b2bce55185b2d66`.
 
 ## APK update-version correction — 2026-09-27
 

@@ -24,9 +24,9 @@ android {
     applicationId = "juloo.keyboard2"
     minSdk = 21
     targetSdk { version = release(36) }
-    // Keep update codes above the diagnostic builds (2.1.2 = 58, 2.1.3 = 59).
-    versionCode = 60
-    versionName = "2.1.4"
+    // Keep update codes above previously distributed prediction and diagnostic APKs.
+    versionCode = 61
+    versionName = "2.1.5"
   }
 
   sourceSets {
