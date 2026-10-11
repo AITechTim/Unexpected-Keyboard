@@ -2,6 +2,7 @@ package juloo.keyboard2.prediction;
 
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.SurroundingText;
+import android.view.KeyEvent;
 import java.lang.reflect.*;
 
 /** Editor with independently delivered selection callbacks, like remote IMEs. */
@@ -30,7 +31,19 @@ public final class FakeEditor implements InvocationHandler
         String insertion = args[0].toString();
         if (composing) start = 0;
         text = text.substring(0, start) + insertion + text.substring(end);
-        start += insertion.length(); end = start; commits++; return true;
+        int position = (int)args[1];
+        start = Math.max(0, Math.min(text.length(), start + (position > 0 ? insertion.length() + position - 1 : position)));
+        end = start; commits++; return true;
+      case "sendKeyEvent":
+        KeyEvent event = (KeyEvent)args[0];
+        if (event.getAction() == KeyEvent.ACTION_DOWN && event.getKeyCode() == KeyEvent.KEYCODE_DEL
+            && event.getMetaState() == 0)
+        {
+          if (start == end && start > 0) start = text.offsetByCodePoints(start, -1);
+          text = text.substring(0, start) + text.substring(end);
+          end = start;
+        }
+        return true;
       case "getTextBeforeCursor": return text.substring(Math.max(0, start - (int)args[0]), start);
       case "getTextAfterCursor": return text.substring(end, Math.min(text.length(), end + (int)args[0]));
       case "getSelectedText": return text.substring(start, end);

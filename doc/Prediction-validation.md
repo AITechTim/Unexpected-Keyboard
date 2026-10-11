@@ -1,5 +1,28 @@
 # Prediction validation
 
+## Preserve following text and normal backspace — 2026-10-11
+
+Suggestion acceptance now replaces only the word prefix before the cursor. Text
+after the cursor is preserved, including adjacent letters and digits. Word and
+phrase acceptance inserts a separator when needed and advances over an existing
+ordinary space without replacing it. Backspace uses normal deletion rather than
+restoring the prefix or undoing the accepted phrase.
+
+**53 focused Java tests pass** across `CompletionEditTest`,
+`CompletionIntegrationTest`, `PredictionSnapshotTest`, `PredictionMergeTest`, and
+`PhraseMemoryTest`. Coverage includes insertion before long following words,
+legacy editor queries, phrases, German/Unicode text, spaces, punctuation,
+failed commits, stale candidates, learning, and repeated backspace. A Robolectric
+API 35 test also exercises Android's `BaseInputConnection` and verifies that the
+following text's span survives while the cursor advances over its existing space.
+
+The normal Gradle test command could not configure because the previous Android
+SDK under `/tmp/unexpected-android-sdk` is absent. The changed production classes
+and these test suites were freshly compiled with JDK 21 against Android API 36,
+then run through JUnit/Robolectric using cached dependencies and existing compiled
+app resources. This is focused Java validation; no APK build or device test was
+performed. The device checklist in `Offline-predictions.md` reflects the new behavior.
+
 ## APK update-version correction — 2026-09-27
 
 The prediction APK from `2df22f7` incorrectly retained version **2.1.0 (56)**,

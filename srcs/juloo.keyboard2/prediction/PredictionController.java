@@ -211,13 +211,7 @@ public final class PredictionController implements AutoCloseable
   {
     return active && candidate != null && candidate.snapshot != null
       && candidate.snapshot.wordBefore.length() < 1024
-      && candidate.snapshot.wordAfter.length() < 32 && current(candidate.snapshot);
-  }
-
-  public boolean matchesForUndo(PredictionSnapshot snapshot)
-  {
-    PredictionSnapshot current = read();
-    return current != null && snapshot.language.equals(current.language) && snapshot.matches(current.before, current.after, current.selection);
+      && current(candidate.snapshot);
   }
 
   public void finish()

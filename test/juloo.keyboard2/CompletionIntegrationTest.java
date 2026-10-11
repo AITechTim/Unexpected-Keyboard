@@ -96,7 +96,7 @@ public class CompletionIntegrationTest
     assertEquals("go to", editor.text);
   }
 
-  @Test public void emojiBeforeWordUsesUtf16AndWholePhraseUndo()
+  @Test public void emojiBeforeWordUsesUtf16AndBackspacePreservesPhrase()
   {
     start("😀 see ", 7);
     keys.send_text("y");
@@ -104,25 +104,29 @@ public class CompletionIntegrationTest
     keys.candidate_entered(new Candidate("you tomorrow morning", Candidate.Source.LEARNED, controller.snapshot()));
     assertEquals("😀 see you tomorrow morning ", editor.text);
     keys.handle_backspace();
-    assertEquals("😀 see y", editor.text);
+    assertEquals("😀 see you tomorrow morning", editor.text);
+    keys.handle_backspace();
+    assertEquals("😀 see you tomorrow mornin", editor.text);
   }
 
-  @Test public void failedEditorOperationDoesNotEnableUndo()
+  @Test public void failedEditorOperationPreservesTextAndCursor()
   {
     start("cof", 3);
     editor.failCommit = true;
     keys.candidate_entered(new Candidate("coffee", Candidate.Source.DICTIONARY, controller.snapshot()));
     assertEquals("cof", editor.text);
+    assertEquals(3, editor.start);
+    assertEquals(editor.start, editor.end);
     assertEquals(0, editor.batchDepth);
   }
-  @Test public void punctuationMovesBeforeOwnedSpaceAndDisablesCompletionUndo()
+  @Test public void punctuationMovesBeforeOwnedSpaceAndBackspaceDeletesNormally()
   {
     start("hel", 3);
     keys.candidate_entered(new Candidate("hello", Candidate.Source.DICTIONARY, controller.snapshot()));
     keys.send_text(","); keys.send_text("!");
     assertEquals("hello,! ", editor.text);
-    keys.handle_backspace(); // Must not restore the original "hel" completion.
-    assertFalse(editor.text.equals("hel"));
+    keys.handle_backspace();
+    assertEquals("hello,!", editor.text);
     assertEquals(0, editor.batchDepth);
   }
   @Test public void manualSpacesPastedPunctuationAndQuotesArePreserved()
@@ -160,6 +164,99 @@ public class CompletionIntegrationTest
     keys.candidate_entered(new Candidate("to", Candidate.Source.DICTIONARY, controller.snapshot()));
     keys.send_text("."); keys.send_text("!"); assertTrue(editor.text.endsWith("to.! "));
   }
+  @Test public void correctionBackspaceDeletesSpaceThenOneCharacter()
+  {
+    for (Candidate.Source source : new Candidate.Source[]{Candidate.Source.DICTIONARY,
+        Candidate.Source.LEARNED, Candidate.Source.LLM})
+    {
+      start("cof", 3);
+      keys.candidate_entered(new Candidate("coffee", source, controller.snapshot()));
+      assertEquals("coffee ", editor.text);
+      keys.handle_backspace();
+      assertEquals("coffee", editor.text);
+      keys.handle_backspace();
+      assertEquals("coffe", editor.text);
+    }
+  }
+
+  @Test public void insertionBeforeLongFollowingWordPreservesItWithLegacyQueries()
+  {
+    String following = new String(new char[80]).replace('\0', 'x') + " tomorrow";
+    for (boolean legacy : new boolean[]{false, true})
+    {
+      start("I " + following, 2);
+      editor.legacyQueries = legacy;
+      keys.send_text("cof");
+      keys.candidate_entered(new Candidate("coffee", Candidate.Source.DICTIONARY, controller.snapshot()));
+      assertEquals("I coffee " + following, editor.text);
+      assertEquals(9, editor.start);
+      keys.handle_backspace();
+      assertEquals("I coffee" + following, editor.text);
+      keys.handle_backspace();
+      assertEquals("I coffe" + following, editor.text);
+    }
+  }
+
+  @Test public void punctuationAfterInsertedSuggestionPreservesFollowingWord()
+  {
+    start("I coftomorrow", 5);
+    keys.candidate_entered(new Candidate("coffee", Candidate.Source.DICTIONARY, controller.snapshot()));
+    keys.send_text(",");
+    assertEquals("I coffee, tomorrow", editor.text);
+    keys.send_text("\n");
+    assertEquals("I coffee,\ntomorrow", editor.text);
+  }
+
+  @Test public void correctionBeforePunctuationDeletesCorrectedCharacter()
+  {
+    start("cof, please", 3);
+    keys.candidate_entered(new Candidate("coffee", Candidate.Source.DICTIONARY, controller.snapshot()));
+    keys.handle_backspace();
+    assertEquals("coffe, please", editor.text);
+  }
+
+  @Test public void correctionReusesExistingSpaceAndBackspaceDeletesIt()
+  {
+    start("cof tomorrow", 3);
+    keys.candidate_entered(new Candidate("coffee", Candidate.Source.DICTIONARY, controller.snapshot()));
+    assertEquals("coffee tomorrow", editor.text);
+    assertEquals(7, editor.start);
+    keys.handle_backspace();
+    assertEquals("coffeetomorrow", editor.text);
+  }
+
+  @Test public void androidConnectionAdvancesOverExistingSpaceWithoutReplacingFollowingSpan()
+  {
+    android.text.Editable text = new android.text.SpannableStringBuilder("cof tomorrow");
+    Object following = new Object();
+    text.setSpan(following, 3, text.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+    android.text.Selection.setSelection(text, 3);
+    InputConnection connection = new android.view.inputmethod.BaseInputConnection(
+        new android.view.View(RuntimeEnvironment.getApplication()), true) {
+      @Override public android.text.Editable getEditable() { return text; }
+    };
+    CompletionEdit edit = new CompletionEdit(new PredictionSnapshot(1, "cof", " tomorrow", 3), "coffee", true);
+    assertTrue(edit.apply(connection));
+    assertEquals("coffee tomorrow", text.toString());
+    assertEquals(7, android.text.Selection.getSelectionStart(text));
+    assertEquals(6, text.getSpanStart(following));
+    assertEquals(text.length(), text.getSpanEnd(following));
+  }
+
+  @Test public void spaceBarCorrectionPreservesFollowingText()
+  {
+    start("cof tomorrow", 3);
+    suggestions.count = 1;
+    suggestions.suggestions[0] = "coffee";
+    org.robolectric.util.ReflectionHelpers.callInstanceMethod(suggestions, "publish_dictionary");
+    suggestions.bind(controller.snapshot());
+    keys._space_bar_auto_complete = true;
+    keys.handle_space_bar();
+    assertEquals("coffee tomorrow", editor.text);
+    keys.handle_backspace();
+    assertEquals("coffeetomorrow", editor.text);
+  }
+
   private void type(String text)
   { for (int i = 0; i < text.length(); i++) keys.send_text(text.substring(i, i + 1)); }
 
@@ -229,7 +326,7 @@ public class CompletionIntegrationTest
     assertEquals(0, learned("see ").words.length);
   }
 
-  @Test public void immediateUndoAndClearDiscardPendingLearning() throws Exception
+  @Test public void backspaceAndClearDiscardPendingLearning() throws Exception
   {
     start("", 0); enableLearning();
     type("see you tomorrow \nsee you tomorrow ");
@@ -266,7 +363,7 @@ public class CompletionIntegrationTest
     keys.candidate_entered(new Candidate("größere", Candidate.Source.DICTIONARY, controller.snapshot()));
     assertEquals("größere ", editor.text);
     keys.handle_backspace();
-    assertEquals("gr", editor.text);
+    assertEquals("größere", editor.text);
   }
   @Test public void germanLearningPauseAndOtherDictionaryLanguagesStayIsolated() throws Exception
   {

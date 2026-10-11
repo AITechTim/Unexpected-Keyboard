@@ -24,7 +24,6 @@ public final class KeyEventHandler
   Autocapitalisation _autocap;
   Suggestions _suggestions;
   public PredictionController predictions;
-  private CompletionEdit completionUndo;
   private final juloo.keyboard2.prediction.SmartSpace smartSpace = new juloo.keyboard2.prediction.SmartSpace();
   CurrentlyTypedWord _typedword;
   /** State of the system modifiers. It is updated whether a modifier is down
@@ -39,9 +38,6 @@ public final class KeyEventHandler
   boolean _move_cursor_force_fallback = false;
   /** Whether the space bar automatically enters the best suggestion. */
   boolean _space_bar_auto_complete = false;
-  /** Remember the action that was handled. This is used by autocorrect. */
-  LastAction _last_action = null;
-  LastAction _next_last_action = null;
 
   public KeyEventHandler(IReceiver recv, Suggestions sg)
   {
@@ -64,16 +60,12 @@ public final class KeyEventHandler
     _move_cursor_force_fallback =
       conf.editor_config.should_move_cursor_force_fallback;
     _space_bar_auto_complete = conf.space_bar_auto_complete;
-    _last_action = null;
-    completionUndo = null;
     smartSpace.clear();
   }
 
   public void finished()
   {
-    completionUndo = null;
     smartSpace.clear();
-    _last_action = null;
   }
 
   /** Selection has been updated. */
@@ -122,7 +114,6 @@ public final class KeyEventHandler
   {
     if (key == null)
       return;
-    _next_last_action = LastAction.OTHER;
     Pointers.Modifiers old_mods = _mods;
     update_meta_state(mods);
     switch (key.getKind())
@@ -139,7 +130,6 @@ public final class KeyEventHandler
       case Stateful: handle_stateful(key.getStateful()); break;
     }
     update_meta_state(old_mods);
-    _last_action = _next_last_action;
   }
 
   @Override
@@ -155,13 +145,11 @@ public final class KeyEventHandler
     CompletionEdit edit = new CompletionEdit(candidate.snapshot, candidate.text,
         candidate.source != Candidate.Source.EMOJI);
     predictions.consume();
-    completionUndo = null;
     smartSpace.clear();
     if (edit.apply(_recv.getCurrentInputConnection()))
     {
       predictions.replaced(edit.after);
-      if (edit.confirm(predictions.snapshot())) { completionUndo = edit; smartSpace.completed(edit); }
-      _last_action = _next_last_action = LastAction.SUGGESTION_ENTERED;
+      if (edit.confirm(predictions.snapshot())) smartSpace.completed(edit);
     }
     _typedword.refresh_current_word();
     predictions.changed();
@@ -275,7 +263,6 @@ public final class KeyEventHandler
       PredictionSnapshot before = predictions.snapshot();
       if (smartSpace.applies(before, "\n"))
       {
-        completionUndo = null;
         if (smartSpace.remove(_recv.getCurrentInputConnection(), before))
           predictions.replaced(new PredictionSnapshot(0, "", "", before.selection - 1));
       }
@@ -311,7 +298,6 @@ public final class KeyEventHandler
     PredictionSnapshot before = predictions == null ? null : predictions.snapshot();
     if (learn && smartSpace.applies(before, text))
     {
-      completionUndo = null;
       boolean success = smartSpace.apply(conn, before, text);
       if (predictions != null)
       {
@@ -602,22 +588,12 @@ public final class KeyEventHandler
       send_text(" ");
   }
 
-  /** Undo the last autocorrect. */
+  /** Delete normally, including immediately after accepting a suggestion. */
   void handle_backspace()
   {
     if (predictions != null) predictions.stopLearning();
-    CompletionEdit undo = completionUndo;
-    completionUndo = null;
     smartSpace.clear();
-    if (_last_action == LastAction.SUGGESTION_ENTERED && undo != null
-        && predictions != null && predictions.matchesForUndo(undo.after))
-    {
-      predictions.consume();
-      if (undo.undo(_recv.getCurrentInputConnection())) predictions.replaced(undo.before);
-      _typedword.refresh_current_word();
-      predictions.changed();
-    }
-    else send_key_down_up(KeyEvent.KEYCODE_DEL);
+    send_key_down_up(KeyEvent.KEYCODE_DEL);
   }
 
   public static interface IReceiver extends Suggestions.Callback
@@ -640,11 +616,5 @@ public final class KeyEventHandler
       else if (should_disable)
         _recv.set_shift_state(false, false);
     }
-  }
-
-  public static enum LastAction
-  {
-    SUGGESTION_ENTERED,
-    OTHER
   }
 }

@@ -40,8 +40,11 @@ unavailable before device unlock.
 Suggestions complete a partially typed word or insert the next word. At the end
 of the field, accepting any word or phrase adds a space. If the completed word
 already exists, tapping it advances without duplicating it. Existing ordinary
-spaces are crossed without adding another; following punctuation is preserved. An immediate backspace undoes the
-acceptance, provided the cursor and surrounding text still match the insertion.
+spaces are crossed without adding another; following punctuation is preserved.
+Acceptance replaces only the word prefix before the cursor and preserves all text
+after it, even inside a word. A separating space is added before following letters
+or digits. Backspace deletes normally: it first removes the trailing space, when
+present, then characters of the accepted word or phrase.
 Space-to-complete continues to use the dictionary candidate, never an LLM guess.
 Immediately typed punctuation (`. , ! ? ; : … ) ] }`) moves before a space inserted
 by accepting a suggestion: `hello ` then `,` becomes `hello, `. Repeated punctuation
@@ -77,7 +80,7 @@ There is no model training or additional download.
   switches it off once for existing installations, reclaiming the row's height.
   You can explicitly enable it again; that choice survives later restarts. When
   off, no model phrase jobs run and learned next-word suggestions still work.
-  Tap the row to insert the whole visible phrase; Backspace immediately undoes it.
+  Tap the row to insert the whole visible phrase; Backspace deletes normally.
 - **Pause learning** stops new collection while keeping saved suggestions.
   Turning **Learn my writing** off stops both collection and learned suggestions.
 - **Prediction model and learned phrases → Clear learned phrases** removes saved
@@ -222,7 +225,10 @@ Until these checks pass, keep the experimental label and default-off setting.
   type `to`, `at`, and `by` fully and tap the same word once. Expect one trailing
   space and no partial deletion. Rapid repeat taps must not create `tototo`.
   Repeat with the model enabled, with an existing following space, before a
-  comma, after emoji, and after moving/selecting text. Check immediate undo.
+  comma, after emoji, and after moving/selecting text. Backspace must delete the
+  preceding space or character without restoring the original prefix. Move back
+  into a sentence, type directly before an existing word, and accept a suggestion:
+  the following word and all later text must survive, with a separating space.
 - Toggle EN/DE with a partially typed word, while pressing a candidate, and during
   inference. Verify the key layout stays unchanged and stale candidates cannot
   insert. Check the preference after app switches and keyboard/process restarts.
@@ -237,7 +243,7 @@ Until these checks pass, keep the experimental label and default-off setting.
   Record cold-load time, sustained typing latency, battery/thermal behavior,
   top-three accuracy, and keystrokes saved versus dictionary-only completion.
 - Verify taps and all three completion shortcuts; space must never accept LLM
-  guesses. Check insertion before punctuation/whitespace and backspace undo.
+  guesses. Check insertion before punctuation/whitespace and normal backspace.
 - Type rapidly, delete, paste, move/select text, switch fields/apps/languages,
   rotate, hide/show the keyboard, and accept while predictions change. No stale
   insertion or replacement of unrelated text is acceptable.

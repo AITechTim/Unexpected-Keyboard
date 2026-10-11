@@ -25,7 +25,11 @@ public class PredictionSnapshotTest
   {
     assertEquals("coffee ", new CompletionEdit(snapshot("I want ", ""), "coffee", true).insertion);
     assertEquals("coffee", new CompletionEdit(snapshot("I want ", ", please"), "coffee", true).insertion);
-    assertEquals("coffee ", new CompletionEdit(snapshot("I want ", " tomorrow"), "coffee", true).insertion);
+    CompletionEdit existingSpace = new CompletionEdit(snapshot("I want ", " tomorrow"), "coffee", true);
+    assertEquals("coffee", existingSpace.insertion);
+    assertEquals("I want coffee ", existingSpace.after.before);
+    assertEquals("tomorrow", existingSpace.after.after);
+    assertFalse(existingSpace.insertedSpace);
     assertTrue(snapshot("I want ", "").validWord("coffee"));
     assertFalse(snapshot("I want ", "").validWord("123"));
     assertFalse(snapshot("I want ", "").validWord("'''"));
